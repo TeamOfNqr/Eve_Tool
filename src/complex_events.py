@@ -124,3 +124,54 @@ def OverviewArea_Modified():
         print("❌ 错误：window_status 或 list_positioning() 未定义，请检查依赖。")
     except Exception as e:
         print(f"❌ 更新 .env 文件时发生错误: {e}")
+
+
+def update_env_from_mouse(name):
+    """
+    使用当前鼠标位置更新 .env 文件中指定参数的值。
+    
+    参数:
+        name (str): .env 文件中要更新的键名（如 "cursor_pos"）
+    """
+    # 获取当前脚本所在目录和项目根目录
+    current_file_path = os.path.abspath(__file__)
+    current_dir = os.path.dirname(current_file_path)
+    project_root = os.path.dirname(current_dir)
+    env_path = os.path.join(project_root, ".env")
+
+    # 检查 .env 文件是否存在
+    if not os.path.isfile(env_path):
+        print("❌ 未找到 .env 文件")
+        return
+
+    # 读取 .env 中所有键，检查 name 是否存在
+    env_vars = dotenv_values(env_path)
+    if name not in env_vars:
+        print(f"❌ .env 文件中不存在参数: {name}")
+        return
+
+    # 获取鼠标位置（假设返回 [x, y]）
+    try:
+        pos = mouse_keyboard.get_mouse_position()
+        if not (isinstance(pos, (list, tuple)) and len(pos) == 2):
+            print("❌ 鼠标位置格式无效")
+            return
+        x, y = pos
+    except Exception as e:
+        print(f"❌ 获取鼠标位置失败: {e}")
+        return
+
+    # 构造元组字符串，不加引号（如 (123, 456)）
+    pos_str = f"({int(x)}, {int(y)})"
+
+    # 更新 .env 文件
+    try:
+        set_key(
+            dotenv_path=env_path,
+            key_to_set=name,
+            value_to_set=pos_str,
+            quote_mode="never"
+        )
+        print(f"✅ 已更新 {name} = {pos_str}")
+    except Exception as e:
+        print(f"❌ 写入 .env 文件失败: {e}")

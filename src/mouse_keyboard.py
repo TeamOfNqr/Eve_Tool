@@ -7,12 +7,13 @@ import numpy as np
 import time
 import os
 from dotenv import load_dotenv, find_dotenv
-from screen_information_judgment import locate_template_on_screen
+import math
 
 # 自定义函数导入
 import sys
 sys.path.append(r'src')
 import window_status
+from screen_information_judgment import locate_template_on_screen
 
 # 鼠标模拟点击函数
 
@@ -162,3 +163,42 @@ def click_on_text_in_region(target_text, region=None, confidence_threshold=list_
 # )
 
 # ===========================================================================================================
+
+def get_mouse_position():
+    """返回当前鼠标在屏幕上的位置，格式为 [x, y]"""
+    x, y = pyautogui.position()
+    return [x, y]
+
+def random_click_in_circle(center, button=0, radius=5):
+    """
+    在指定坐标为中心、给定半径的圆形范围内随机点击。
+    
+    参数:
+        center (list): [x, y] 基准坐标
+        button (int): 0 表示左键，1 表示右键
+        radius (int): 随机偏移的像素半径（默认 5）
+    """
+    if not isinstance(center, (list, tuple)) or len(center) != 2:
+        raise ValueError("center 必须是包含两个元素的列表或元组，如 [x, y]")
+    
+    x, y = center
+
+    # 在圆形区域内生成均匀分布的随机点
+    # 使用极坐标：r = sqrt(rand) * R, theta = 2π * rand
+    r = radius * math.sqrt(random.random())
+    theta = random.uniform(0, 2 * math.pi)
+    
+    offset_x = int(r * math.cos(theta))
+    offset_y = int(r * math.sin(theta))
+    
+    click_x = x + offset_x
+    click_y = y + offset_y
+
+    # 确定按键
+    pyautogui.click(
+        x=click_x,
+        y=click_y,
+        button='left' if button == 0 else 'right',
+        clicks=1,
+        interval=0.0
+    )

@@ -113,4 +113,4 @@ def list_positioning():
 
     return (positioning)
 
-list_positioning()
+

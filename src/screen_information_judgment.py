@@ -132,4 +132,5 @@ def highlight_region_on_screen(rect, duration=2000):
 #                                  threshold=float(os.getenv('is_state_active_threshold', 0.7)))
 
 # # 高亮显示 2 秒
-# highlight_region_on_screen(rect, duration=2000)
+# overview_area = eval(os.getenv('overview_area'))  # 转换为元组
+# highlight_region_on_screen(rect = overview_area, duration=2000)

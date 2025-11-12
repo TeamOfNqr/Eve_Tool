@@ -13,3 +13,6 @@ def ShowArea(areaname = None):
     '''
     area = eval(os.getenv(areaname))  # 转换为元组
     screen_information_judgment.highlight_region_on_screen(rect = area, duration=2000)
+
+
+ShowArea(areaname = "overview_area")

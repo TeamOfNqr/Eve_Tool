@@ -89,7 +89,7 @@ list_of_text_confidence = eval(os.getenv('list_of_text_confidence'))
 # 初始化 OCR 阅读器，支持简体中文和英文
 reader = easyocr.Reader(['ch_sim', 'en'], gpu=False)
 
-def click_on_text_in_region(target_text, region=None, confidence_threshold=list_of_text_confidence, click_button=0, offset_range=3):
+def click_on_text_in_region(target_text, region=None, confidence_threshold=0.7, click_button=0, offset_range=3):
     """
     在指定屏幕区域内查找目标文字，并在其位置点击（带随机微偏移，模拟真人）。
     

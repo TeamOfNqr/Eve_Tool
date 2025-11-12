@@ -7,7 +7,7 @@ import re
 import mouse_keyboard
 import screen_information_judgment
 import window_status
-
+import ore_data
 
 # 加载环境变量
 load_dotenv(find_dotenv())
@@ -126,6 +126,8 @@ def update_env_region(name: str):
         print(f"❌ 更新 .env 文件时发生错误: {e}")
 
 
+# update_env_region(name = "overview_area")
+
 def update_env_from_mouse(name):
     """
     使用当前鼠标位置更新 .env 文件中指定参数的值。
@@ -216,4 +218,43 @@ def Replace_MiningHead(Collector = "C",text = "None"):
     # )
 
 # update_env_from_mouse("CollectorB")
-Replace_MiningHead(Collector = "A",text = "聚合小行星采集晶体B型")
+# Replace_MiningHead(Collector = "A",text = "聚合小行星采集晶体B型")
+
+def LockedOre_Image(Ore_Name: str):
+    '''
+    锁定矿石图像
+    1. 找到需要锁定的矿石图像
+    2. 左键点击锁定
+    '''
+    # for ore in ore_data.IceMineral:
+    #     if ore[0] == Ore_Name:
+    #         # 获取对应的截图文件名
+    #         image_filename = ore[1]
+    #         # 拼装完整路径
+    #         image_path = r'assets\screenshot_comparison_4K_100/information_bar/ora/ice/' + image_filename
+    #         # 进行图像识别
+    #         bbox = screen_information_judgment.locate_template_on_screen(
+    #             image_path,
+    #             threshold=0.8
+    #         )
+    #         # 点击识别到的位置
+    #         mouse_keyboard.click_random_point_in_ellipse(bbox, click_button=1, debug=True)
+    #         # 找到并处理后退出循环
+    #         break
+
+    mouse_keyboard.click_on_text_in_region(
+        target_text = Ore_Name, 
+        click_button=1,
+        region=overview_area,
+        confidence_threshold=0.3,
+    )
+    sleep(0.5)
+    mouse_keyboard.click_on_text_in_region(
+        target_text = "目标", 
+        click_button=0,
+        region=overview_area,
+        confidence_threshold=0.3,
+    )
+    
+
+LockedOre_Image(Ore_Name = "朴白釉冰")

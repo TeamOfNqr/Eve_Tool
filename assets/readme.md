@@ -10,6 +10,10 @@
   - 信息栏图标
   - ora
     - 矿石
+    - ice
+      - 冰矿
+    - ordinary
+      - 普通矿石
   - reputation
     - 声望信息
   - pvevp

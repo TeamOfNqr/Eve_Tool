@@ -11,9 +11,28 @@ from dotenv import load_dotenv, find_dotenv,dotenv_values, set_key
 import os
 load_dotenv(find_dotenv())
 
+from src import ore_data
+import shutil
+
 # 从环境变量获取总览区域
 overview_area = eval(os.getenv('总览区域'))
 总览区域比例 = eval(os.getenv('总览区域比例'))
+
+def clear_tmp_folder():
+    """
+    ### 清空 assets/tmp 文件夹内容 ###
+    """
+    tmp_path = "./assets/tmp"
+    if os.path.exists(tmp_path):
+        for filename in os.listdir(tmp_path):
+            file_path = os.path.join(tmp_path, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print(f"删除文件/文件夹时出错 {file_path}: {e}")
 
 def Screenshot(region=None):
     """
@@ -50,10 +69,12 @@ def Imageecognition(screenshot = Screenshot()):
     #     use_doc_unwarping=False,
     #     use_textline_orientation=False) # 更换 PP-OCRv5_mobile 模型
     result = ocr.predict(screenshot)
+    # 清空 tmp 文件夹并保存结果
+    clear_tmp_folder()
     for res in result:
         res.print()
-        res.save_to_img("./output")
-        res.save_to_json("./output")
+        res.save_to_img("./assets/tmp")
+        res.save_to_json("./assets/tmp")
 
     return result
 
@@ -113,6 +134,9 @@ def Imageecognition_right_third(position_ratio: List[float] = None):
     # 将坐标转换回原图坐标系（加上偏移量）
     offset_x = left
     offset_y = top
+    
+    # 清空 tmp 文件夹
+    clear_tmp_folder()
     
     for res in result:
         # 辅助函数：转换多边形坐标
@@ -195,8 +219,8 @@ def Imageecognition_right_third(position_ratio: List[float] = None):
         
         # 保存结果
         res.print()
-        res.save_to_img("./output")
-        res.save_to_json("./output")
+        res.save_to_img("./assets/tmp")
+        res.save_to_json("./assets/tmp")
     
     return result
 

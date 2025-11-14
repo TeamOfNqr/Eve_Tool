@@ -5,6 +5,8 @@ from pathlib import Path
 import pyautogui
 import time
 import re
+import random
+import math
 
 # 加载环境变量
 from dotenv import load_dotenv, find_dotenv,dotenv_values, set_key
@@ -666,4 +668,104 @@ def parse_ocr_table_json(json_path: Union[str, Path, dict]) -> List[List[str]]:
                 table_data.append(row_data)
     
     return table_data
+
+
+def random_click_in_inscribed_circle(
+    coordinates: Union[List[List[int]], List[int]],
+    random_range: int,
+    button_type: int
+) -> bool:
+    """
+    ### 在框内生成内接圆/椭圆，并在圆心周围随机点击 ###
+    参数：
+    coordinates: 坐标格式
+        - 多边形格式: [[x1, y1], [x2, y2], [x3, y3], [x4, y4]] (4个点)
+        - 矩形格式: [x_min, y_min, x_max, y_max] (4个数值)
+    random_range: 在圆心周围随机点击的像素范围（半径）
+    button_type: 点击类型，0=左键，1=右键
+    返回：
+    True: 成功
+    False: 失败
+    ##############################
+    """
+    try:
+        # 判断坐标格式并转换为矩形格式
+        if isinstance(coordinates[0], list):
+            # 多边形格式: [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
+            if len(coordinates) != 4:
+                raise ValueError("多边形格式需要4个点")
+            x_coords = [point[0] for point in coordinates]
+            y_coords = [point[1] for point in coordinates]
+            x_min = min(x_coords)
+            y_min = min(y_coords)
+            x_max = max(x_coords)
+            y_max = max(y_coords)
+        else:
+            # 矩形格式: [x_min, y_min, x_max, y_max]
+            if len(coordinates) != 4:
+                raise ValueError("矩形格式需要4个数值")
+            x_min, y_min, x_max, y_max = coordinates
+        
+        # 计算矩形的宽度和高度
+        width = x_max - x_min
+        height = y_max - y_min
+        
+        if width <= 0 or height <= 0:
+            raise ValueError("无效的矩形尺寸")
+        
+        # 计算内接椭圆/圆的中心和半轴长
+        center_x = (x_min + x_max) / 2
+        center_y = (y_min + y_max) / 2
+        
+        # 使用椭圆（内接于矩形）
+        # 椭圆的半轴长
+        a = width / 2  # 水平半轴
+        b = height / 2  # 垂直半轴
+        
+        # 在圆心周围 random_range 像素范围内生成随机点
+        # 使用极坐标生成随机点，确保在圆心周围的圆内，同时也在椭圆内
+        max_attempts = 100  # 最大尝试次数
+        click_x, click_y = None, None
+        
+        for _ in range(max_attempts):
+            # 生成随机角度和距离（在圆心周围 random_range 像素范围内）
+            angle = random.uniform(0, 2 * math.pi)
+            distance = random.uniform(0, random_range)
+            
+            # 转换为直角坐标（相对于圆心）
+            offset_x = distance * math.cos(angle)
+            offset_y = distance * math.sin(angle)
+            
+            # 计算实际点击坐标
+            candidate_x = center_x + offset_x
+            candidate_y = center_y + offset_y
+            
+            # 检查点是否在椭圆内
+            # 椭圆方程: ((x-cx)/a)^2 + ((y-cy)/b)^2 <= 1
+            normalized_x = (candidate_x - center_x) / a
+            normalized_y = (candidate_y - center_y) / b
+            if normalized_x ** 2 + normalized_y ** 2 <= 1:
+                click_x = int(candidate_x)
+                click_y = int(candidate_y)
+                break
+        
+        # 如果无法生成有效点，使用圆心
+        if click_x is None or click_y is None:
+            click_x = int(center_x)
+            click_y = int(center_y)
+        
+        # 执行点击
+        if button_type == 0:
+            # 左键
+            pyautogui.click(click_x, click_y)
+        elif button_type == 1:
+            # 右键
+            pyautogui.rightClick(click_x, click_y)
+        else:
+            raise ValueError("button_type 必须是 0（左键）或 1（右键）")
+        
+        return True
+    except Exception as e:
+        print(f"随机点击函数执行失败: {str(e)}")
+        return False
 

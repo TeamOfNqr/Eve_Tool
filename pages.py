@@ -55,6 +55,7 @@ class RealTimeTextStream(io.TextIOBase):
             QCoreApplication.processEvents()
         self.buffer = ""
 
+
 class InfoPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)

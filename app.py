@@ -1,11 +1,12 @@
 import sys
 import os
+from pathlib import Path
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QStackedWidget, QLabel, QFrame, QScrollArea, QSizePolicy
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QIcon
 
 import src
 
@@ -74,6 +75,11 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("EVE_TOOLS")
         self.resize(1000, 700)
+        
+        # 设置窗口图标（使用相对路径）
+        icon_path = Path(__file__).parent / "assets" / "image" / "nqr.jpg"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
 
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
@@ -162,6 +168,12 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    
+    # 设置应用程序图标（使用相对路径）
+    icon_path = Path(__file__).parent / "assets" / "image" / "nqr.jpg"
+    if icon_path.exists():
+        app.setWindowIcon(QIcon(str(icon_path)))
+    
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

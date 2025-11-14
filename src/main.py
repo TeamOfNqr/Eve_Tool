@@ -199,3 +199,5 @@ def Imageecognition_right_third(position_ratio: List[float] = None):
         res.save_to_json("./output")
     
     return result
+
+

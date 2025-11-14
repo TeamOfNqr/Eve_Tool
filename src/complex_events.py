@@ -1,8 +1,6 @@
 from nt import write
 from paddleocr import PaddleOCR
 
-import pyautogui
-import cv2
 import numpy as np
 from typing import Union, List
 import os
@@ -13,10 +11,13 @@ import os
 load_dotenv(find_dotenv())
 import time
 
-from src import tools
+# from src import main
+# from src import tools
+import main
+import tools
 
 # 从环境变量获取总览区域
-置顶显示 = eval(os.getenv('置顶显示'))
+总览区域比例 = eval(os.getenv('总览区域比例'))
 
 
 def Info_Show():
@@ -66,3 +67,23 @@ def OverviewScale_Change():
     except:
         print("总览比例修改函数执行失败")
         return False
+
+def IceMining():
+    main.Imageecognition_right_third(总览区域比例)
+    list = []
+    # 查找 assets/tmp 目录中的 JSON 文件并处理
+    tmp_path = "./assets/tmp"
+    json_file = None
+    if os.path.exists(tmp_path):
+        for filename in os.listdir(tmp_path):
+            if filename.endswith('.json'):
+                json_file = os.path.join(tmp_path, filename)
+                break
+    
+    if json_file:
+        list = tools.parse_ocr_table_json(json_file)
+    else:
+        print("未找到 JSON 文件在 assets/tmp 目录中")
+    print(list)
+
+IceMining()

@@ -11,8 +11,14 @@ from dotenv import load_dotenv, find_dotenv,dotenv_values, set_key
 import os
 load_dotenv(find_dotenv())
 
-from src import ore_data
 import shutil
+
+# from src import ore_data
+# from src import main
+# from src import tools
+import main
+import tools
+import ore_data
 
 # 从环境变量获取总览区域
 overview_area = eval(os.getenv('总览区域'))

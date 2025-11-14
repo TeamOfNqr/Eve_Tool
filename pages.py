@@ -219,7 +219,7 @@ class MainPage(QWidget):
         right_layout.addWidget(self.button1)
 
         # 创建按钮2
-        self.button2 = QPushButton("窗口前置&取消")
+        self.button2 = QPushButton("窗口前置/取消前置")
         self.button2.setFixedHeight(36)
         self.button2.setStyleSheet(button_style)
         self.button2.clicked.connect(self.on_button2_clicked)
@@ -395,7 +395,7 @@ class MainPage(QWidget):
     
     def on_button2_clicked(self):
         """按钮2点击处理"""
-        self._update_console("窗口前置&取消", self.toggle_window_topmost)
+        self._update_console("窗口前置/取消前置", self.toggle_window_topmost)
 
     def on_button3_clicked(self):
         """按钮3点击处理"""

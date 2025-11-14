@@ -14,7 +14,7 @@ import os
 load_dotenv(find_dotenv())
 
 # 从环境变量获取总览区域
-overview_area = eval(os.getenv('总览区域'))
+总览区域比例 = eval(os.getenv('总览区域比例'))
 
 def highlight_region(
     coordinates: Union[List[List[int]], List[int]], 
@@ -669,26 +669,37 @@ def parse_ocr_table_json(json_path: Union[str, Path, dict]) -> List[List[str]]:
     
     return table_data
 
-
 def random_click_in_inscribed_circle(
     coordinates: Union[List[List[int]], List[int]],
     random_range: int,
-    button_type: int
+    button_type: int,
+    position_ratio: Optional[List[float]] = None
 ) -> bool:
     """
-    ### 在框内生成内接圆/椭圆，并在圆心周围随机点击 ###
+    ### 在框内生成内接圆/椭圆，并在圆心周围随机点击（已补偿剪裁偏移） ###
     参数：
     coordinates: 坐标格式
         - 多边形格式: [[x1, y1], [x2, y2], [x3, y3], [x4, y4]] (4个点)
         - 矩形格式: [x_min, y_min, x_max, y_max] (4个数值)
     random_range: 在圆心周围随机点击的像素范围（半径）
     button_type: 点击类型，0=左键，1=右键
+    position_ratio: 剪裁比例 [x比例, y比例]，默认为None（从.env中的"总览区域比例"读取）
     返回：
     True: 成功
     False: 失败
+    注意：
+    此函数会补偿Imageecognition_right_third()函数中的剪裁偏移
     ##############################
     """
     try:
+        # 获取屏幕尺寸
+        screen_width, screen_height = pyautogui.size()
+        
+        # 计算剪裁偏移量（与Imageecognition_right_third()中的计算方式一致）
+        x_ratio, y_ratio = position_ratio
+        offset_x = int(screen_width * x_ratio)  # left偏移量
+        offset_y = 0  # top偏移量（始终为0）
+        
         # 判断坐标格式并转换为矩形格式
         if isinstance(coordinates[0], list):
             # 多边形格式: [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
@@ -705,6 +716,12 @@ def random_click_in_inscribed_circle(
             if len(coordinates) != 4:
                 raise ValueError("矩形格式需要4个数值")
             x_min, y_min, x_max, y_max = coordinates
+        
+        # 补偿剪裁偏移量：将剪裁后图像的坐标转换为原图坐标
+        x_min = x_min + offset_x
+        y_min = y_min + offset_y
+        x_max = x_max + offset_x
+        y_max = y_max + offset_y
         
         # 计算矩形的宽度和高度
         width = x_max - x_min
@@ -733,12 +750,12 @@ def random_click_in_inscribed_circle(
             distance = random.uniform(0, random_range)
             
             # 转换为直角坐标（相对于圆心）
-            offset_x = distance * math.cos(angle)
-            offset_y = distance * math.sin(angle)
+            offset_x_local = distance * math.cos(angle)
+            offset_y_local = distance * math.sin(angle)
             
             # 计算实际点击坐标
-            candidate_x = center_x + offset_x
-            candidate_y = center_y + offset_y
+            candidate_x = center_x + offset_x_local
+            candidate_y = center_y + offset_y_local
             
             # 检查点是否在椭圆内
             # 椭圆方程: ((x-cx)/a)^2 + ((y-cy)/b)^2 <= 1
@@ -754,6 +771,12 @@ def random_click_in_inscribed_circle(
             click_x = int(center_x)
             click_y = int(center_y)
         
+        # 移动鼠标到目标位置
+        pyautogui.moveTo(click_x, click_y)
+        
+        # 等待0.2秒
+        time.sleep(0.2)
+        
         # 执行点击
         if button_type == 0:
             # 左键
@@ -768,4 +791,3 @@ def random_click_in_inscribed_circle(
     except Exception as e:
         print(f"随机点击函数执行失败: {str(e)}")
         return False
-

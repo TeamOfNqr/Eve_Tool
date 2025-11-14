@@ -1,23 +1,21 @@
-# 总览
-## 开发计划
-1.  矿物采集
-1.1
-1.2 自动矿物采集
-1.3 自动矿物压缩
-1.4 自动选择比较昂贵的矿物开采
-1.5 支持选择不同的矿物进行黑名单或是白名单
-1.6 完成对矿头的自动更换选择逻辑
-2. 多账号问题
-2.1 舰队环绕控制
-2.2 加成号单独功能
-3. 预警问题
-3.1 当安全问题触发后，采集号自动就近躲避
-3.2 当安全问题触发后，加成号自动就近躲避
-3.3 添加按钮一键躲避开始（或是带跳）
+## 简介
+    这是一个EVE脚本程序，完成对EVE的游戏的交互操作
+## 使用
 
-## 独立内容
-1. 矿物读取与定位
-2. 按钮读取与定位
-3. 仓库容积判断
-4. 多账号读取与定位
-5. 
+## 部署环境
+- 部分环境链接
+  - [paddlepaddle-gpu 快速部署](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/develop/install/pip/windows-pip.html)
+  - [CUDA12.9 Windows](https://developer.download.nvidia.com/compute/cuda/12.9.0/local_installers/cuda_12.9.0_576.02_windows.exe)
+  - [Scoop 安装](https://csdiy.wiki/%E5%BF%85%E5%AD%A6%E5%B7%A5%E5%85%B7/Scoop/)
+  - [PaddleOCR 文档](https://www.paddleocr.ai/main/index.html)
+- 
+```
+# 快速环境部署
+conda create --name EveTool_Env python=3.12
+conda activate EveTool_Env
+pip install PyQt6 pyautogui paddleocr dotenv easyocr
+```
+```
+# 选装
+scoop install ccache
+```

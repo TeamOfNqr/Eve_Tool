@@ -4,9 +4,7 @@ import pyautogui
 import cv2
 import numpy as np
 from typing import Union, List
-import json
 import os
-from pathlib import Path
 
 # 加载环境变量
 from dotenv import load_dotenv, find_dotenv,dotenv_values, set_key
@@ -201,5 +199,3 @@ def Imageecognition_right_third(position_ratio: List[float] = None):
         res.save_to_json("./output")
     
     return result
-
-Imageecognition_right_third(position_ratio = 总览区域比例)

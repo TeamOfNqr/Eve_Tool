@@ -1,0 +1,180 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PaddleOCR v5 Response Format",
+  "description": "JSON Schema for PaddleOCR v5 OCR recognition result",
+  "type": "object",
+  "required": [
+    "input_path",
+    "page_index",
+    "model_settings",
+    "dt_polys",
+    "text_det_params",
+    "text_type",
+    "textline_orientation_angles",
+    "text_rec_score_thresh",
+    "return_word_box",
+    "rec_texts",
+    "rec_scores",
+    "rec_polys",
+    "rec_boxes"
+  ],
+  "properties": {
+    "input_path": {
+      "type": "string",
+      "description": "输入图片的路径或文件名"
+    },
+    "page_index": {
+      "type": ["integer", "null"],
+      "description": "页面索引（多页文档时使用，单页时为null）"
+    },
+    "model_settings": {
+      "type": "object",
+      "description": "模型配置参数",
+      "required": ["use_doc_preprocessor", "use_textline_orientation"],
+      "properties": {
+        "use_doc_preprocessor": {
+          "type": "boolean",
+          "description": "是否使用文档预处理器"
+        },
+        "use_textline_orientation": {
+          "type": "boolean",
+          "description": "是否使用文本行方向检测"
+        }
+      }
+    },
+    "dt_polys": {
+      "type": "array",
+      "description": "文本检测阶段检测到的多边形框坐标",
+      "items": {
+        "type": "array",
+        "description": "一个四边形的4个顶点",
+        "minItems": 4,
+        "maxItems": 4,
+        "items": {
+          "type": "array",
+          "description": "一个点的坐标 [x, y]",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "text_det_params": {
+      "type": "object",
+      "description": "文本检测参数配置",
+      "required": [
+        "limit_side_len",
+        "limit_type",
+        "thresh",
+        "max_side_limit",
+        "box_thresh",
+        "unclip_ratio"
+      ],
+      "properties": {
+        "limit_side_len": {
+          "type": "number",
+          "description": "限制边长（像素）"
+        },
+        "limit_type": {
+          "type": "string",
+          "enum": ["min", "max"],
+          "description": "限制类型"
+        },
+        "thresh": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "阈值（0-1之间）"
+        },
+        "max_side_limit": {
+          "type": "number",
+          "description": "最大边长限制"
+        },
+        "box_thresh": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "框阈值（0-1之间）"
+        },
+        "unclip_ratio": {
+          "type": "number",
+          "description": "反裁剪比例"
+        }
+      }
+    },
+    "text_type": {
+      "type": "string",
+      "description": "文本类型标识",
+      "enum": ["general", "doc"]
+    },
+    "textline_orientation_angles": {
+      "type": "array",
+      "description": "每个文本行的方向角度（度），-1表示未检测",
+      "items": {
+        "type": "integer"
+      }
+    },
+    "text_rec_score_thresh": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "文本识别置信度阈值（0-1之间）"
+    },
+    "return_word_box": {
+      "type": "boolean",
+      "description": "是否返回单词级别的框"
+    },
+    "rec_texts": {
+      "type": "array",
+      "description": "识别出的文本内容列表",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rec_scores": {
+      "type": "array",
+      "description": "每个文本的识别置信度分数（0-1之间）",
+      "items": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "rec_polys": {
+      "type": "array",
+      "description": "文本识别阶段的多边形框坐标",
+      "items": {
+        "type": "array",
+        "description": "一个四边形的4个顶点",
+        "minItems": 4,
+        "maxItems": 4,
+        "items": {
+          "type": "array",
+          "description": "一个点的坐标 [x, y]",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "rec_boxes": {
+      "type": "array",
+      "description": "文本识别阶段的矩形框坐标 [x_min, y_min, x_max, y_max]",
+      "items": {
+        "type": "array",
+        "description": "矩形框坐标",
+        "minItems": 4,
+        "maxItems": 4,
+        "items": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}
+

@@ -12,10 +12,6 @@ os.environ.setdefault("QT_QPA_PLATFORM", "windows:dpiawareness=1")
 
 from pages import MainPage, InfoPage, AboutPage, DebugPage
 
-# 自定义函数导入
-from src import screen_information_judgment
-sys.path.append(r'src')
-
 class NavigationItem(QFrame):
     """极致紧凑型导航项"""
     clicked = pyqtSignal(int)

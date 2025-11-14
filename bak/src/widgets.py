@@ -15,4 +15,22 @@ def ShowArea(areaname = None):
     screen_information_judgment.highlight_region_on_screen(rect = area, duration=2000)
 
 
-ShowArea(areaname = "overview_area")
+# ShowArea(areaname = "overview_area")
+
+
+def ShowArea2(area = None):
+    '''
+    显示区域
+    '''
+    screen_information_judgment.highlight_region_on_screen(rect = area, duration=200000)
+
+
+area =                 [
+            1337,
+            3,
+            1348,
+            12
+        ]
+
+ShowArea2(area = area)
+

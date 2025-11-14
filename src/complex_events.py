@@ -13,12 +13,15 @@ import time
 
 # from src import main
 # from src import tools
+# from src import ore_data
 import main
 import tools
+import ore_data
 
 # 从环境变量获取总览区域
 总览区域比例 = eval(os.getenv('总览区域比例'))
-
+矿头挖掘距离 = int(eval(os.getenv('矿头挖掘距离')))
+调试模式 = int(eval(os.getenv('调试模式')))
 
 def Info_Show():
     """
@@ -68,22 +71,204 @@ def OverviewScale_Change():
         print("总览比例修改函数执行失败")
         return False
 
-def IceMining():
-    main.Imageecognition_right_third(总览区域比例)
-    list = []
-    # 查找 assets/tmp 目录中的 JSON 文件并处理
-    tmp_path = "./assets/tmp"
-    json_file = None
-    if os.path.exists(tmp_path):
-        for filename in os.listdir(tmp_path):
-            if filename.endswith('.json'):
-                json_file = os.path.join(tmp_path, filename)
-                break
-    
-    if json_file:
-        list = tools.parse_ocr_table_json(json_file)
-    else:
-        print("未找到 JSON 文件在 assets/tmp 目录中")
-    print(list)
+def IceLock():
+    """
+    ### 冰矿锁定函数 ###
+    从OCR识别的表格数据中找到最贵的且距离小于矿头挖掘距离的矿石，
+    然后点击矿石并锁定目标
+    返回：
+    True: 成功
+    False: 失败
+    ################
+    """
+    try:
+        # 执行OCR识别（不显示详细输出）
+        main.Imageecognition_right_third(总览区域比例, verbose=False)
+        
+        # 查找 assets/tmp 目录中的 JSON 文件并处理
+        tmp_path = "./assets/tmp"
+        json_file = None
+        if os.path.exists(tmp_path):
+            for filename in os.listdir(tmp_path):
+                if filename.endswith('.json'):
+                    json_file = os.path.join(tmp_path, filename)
+                    break
+        
+        if not json_file:
+            return False
+        
+        # 解析OCR表格数据
+        table_data = tools.parse_ocr_table_json(json_file)
+        if not table_data:
+            return False
+        
+        # 调试：显示所有解析到的表格数据
+        if 调试模式 == 1 :
+            print(f"调试: 共解析到 {len(table_data)} 行数据")
+            for i, row in enumerate(table_data[:10]):  # 只显示前10行
+                print(f"调试: 第{i+1}行: 距离={row[0] if len(row) > 0 else 'N/A'}, 名字={row[1] if len(row) > 1 else 'N/A'}, 类型={row[2] if len(row) > 2 else 'N/A'}")
+        
+        # 创建矿石价格字典（从ore_data.IceMineral_Isk）
+        # 格式: {矿石名称: 价格}
+        ore_price_dict = {}
+        for ore_item in ore_data.IceMineral_Isk:
+            if len(ore_item) >= 5 and ore_item[0] != 'core-name':  # 跳过表头
+                ore_name = ore_item[0]  # 矿石名称
+                try:
+                    ore_price = int(ore_item[4])  # 矿石价格（isk/m^3）
+                    ore_price_dict[ore_name] = ore_price
+                except (ValueError, IndexError):
+                    continue
+        
+        # 从上往下遍历表格数据，找到所有符合条件的矿石
+        valid_ores = []
+        
+        for i, row in enumerate(table_data):
+            if len(row) < 4:
+                continue
+            
+            distance_str = row[0]  # 距离列
+            ore_type = row[2]      # 类型列（矿石名称）
+            position_str = row[3]  # 位置列
+            
+            # 跳过无效数据
+            if distance_str == "-" or ore_type == "-" or position_str == "-":
+                continue
+            
+            # 解析距离
+            distance_km = tools.parse_distance_to_km(distance_str)
+            
+            # 调试信息：显示所有距离解析结果
+            if 调试模式 == 1 :
+                print(f"调试: 距离字符串='{distance_str}', 解析后={distance_km}km, 矿头挖掘距离={矿头挖掘距离}km")
+                
+            
+            # 检查矿石类型是否在价格字典中，支持多种匹配方式
+            matched_ore_name = None
+            matched_price = None
+            
+            # 1. 首先尝试完全匹配
+            if ore_type in ore_price_dict:
+                matched_ore_name = ore_type
+                matched_price = ore_price_dict[ore_type]
+                if 调试模式 == 1 :
+                    print(f"调试: 完全匹配到矿石: {ore_type} -> {matched_ore_name}")
+            else:
+                # 2. 尝试提取括号内的内容（例如"小行星(白釉冰)" -> "白釉冰"）
+                import re
+                match = re.search(r'\(([^)]+)\)', ore_type)
+                if match:
+                    extracted_name = match.group(1)
+                    if extracted_name in ore_price_dict:
+                        matched_ore_name = extracted_name
+                        matched_price = ore_price_dict[extracted_name]
+                        if 调试模式 == 1 :
+                            print(f"调试: 括号匹配到矿石: {ore_type} -> {matched_ore_name}")
+                
+                # 3. 如果还没有匹配，尝试部分匹配（例如"高密度白釉冰"包含"白釉冰"）
+                # 优先匹配更长的名称（更精确的匹配）
+                if matched_ore_name is None:
+                    # 按名称长度排序，优先匹配更长的名称
+                    sorted_ore_names = sorted(ore_price_dict.keys(), key=len, reverse=True)
+                    for ore_name in sorted_ore_names:
+                        # 检查矿石名称是否包含在类型中，或者类型是否包含矿石名称
+                        if ore_name in ore_type or ore_type in ore_name:
+                            matched_ore_name = ore_name
+                            matched_price = ore_price_dict[ore_name]
+                            print(f"调试: 部分匹配到矿石: {ore_type} -> {matched_ore_name}")
+                            break
+            
+            # 如果没有匹配到任何矿石，跳过这一行
+            if matched_ore_name is None or matched_price is None:
+                print(f"调试: 未匹配到矿石类型: {ore_type}，跳过")
+                continue
+            
+            # 添加到有效矿石列表
+            valid_ores.append({
+                'row': row,
+                'name': matched_ore_name,
+                'price': matched_price,
+                'distance': distance_str,
+                'index': i
+            })
+        
+        # 如果没有找到合适的矿石
+        if not valid_ores:
+            return False
+        
+        # 按价格从高到低排序，找到最贵的矿石
+        valid_ores.sort(key=lambda x: x['price'], reverse=True)
+        
+        # 去重：只保留不同名称的矿石（保留价格最高的）
+        unique_ores = {}
+        for ore in valid_ores:
+            ore_name = ore['name']
+            if ore_name not in unique_ores or ore['price'] > unique_ores[ore_name]['price']:
+                unique_ores[ore_name] = ore
+        
+        unique_ores_list = list(unique_ores.values())
+        unique_ores_list.sort(key=lambda x: x['price'], reverse=True)
+        
+        # 显示找到的矿石
+        print(f"找到 {len(unique_ores_list)} 个不同的矿石:")
+        for idx, ore in enumerate(unique_ores_list, 1):
+            print(f"  {idx}. {ore['name']}, 价格: {ore['price']}, 距离: {ore['distance']}")
+        
+        # 锁定所有找到的矿石
+        locked_count = 0
+        for idx, ore in enumerate(unique_ores_list, 1):
+            print(f"\n开始锁定第 {idx} 个矿石: {ore['name']}")
+            
+            # 解析位置信息（字符串格式的列表转换为列表）
+            position_str = ore['row'][3]
+            try:
+                # 将字符串 "[x_min, y_min, x_max, y_max]" 转换为列表
+                import ast
+                position = ast.literal_eval(position_str)
+                if not isinstance(position, list) or len(position) != 4:
+                    continue
+            except Exception as e:
+                continue
+            
+            # 点击矿石（右键，button_type=1）
+            print(f"点击矿石位置: {position}")
+            if not tools.random_click_in_inscribed_circle(
+                position, 
+                3, 
+                1, 
+                position_ratio=总览区域比例
+            ):
+                continue
+            
+            # 等待一小段时间，让菜单弹出
+            time.sleep(0.5)
+            
+            # 锁定目标（左键，button_type=0）
+            # 刷新OCR识别并查找"锁定目标"按钮（因为点击矿石后可能弹出菜单）
+            lock_position = tools.refresh_and_find_keyword_position("锁定目标", verbose=False)
+            if lock_position is None:
+                continue
+            
+            print(f"点击锁定目标位置: {lock_position}")
+            if not tools.random_click_in_inscribed_circle(
+                lock_position,
+                3,
+                0,
+                position_ratio=总览区域比例
+            ):
+                continue
+            
+            locked_count += 1
+            print(f"成功锁定第 {idx} 个目标: {ore['name']}")
+        
+        if locked_count > 0:
+            print(f"\n成功锁定所有 {locked_count} 个目标")
+            return True
+        else:
+            return False
+        
+    except Exception as e:
+        return False
 
-IceMining()
+IceLock()
+# ore_data.IceMineral_Isk

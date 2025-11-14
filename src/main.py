@@ -5,6 +5,10 @@ import cv2
 import numpy as np
 from typing import Union, List
 import os
+import logging
+import sys
+from contextlib import redirect_stdout, redirect_stderr
+from io import StringIO
 
 # 加载环境变量
 from dotenv import load_dotenv, find_dotenv,dotenv_values, set_key
@@ -12,6 +16,11 @@ import os
 load_dotenv(find_dotenv())
 
 import shutil
+
+# 设置 PaddleOCR 的日志级别为 ERROR，抑制 INFO 和 WARNING 输出
+logging.getLogger('ppocr').setLevel(logging.ERROR)
+logging.getLogger('paddleocr').setLevel(logging.ERROR)
+logging.getLogger('paddlex').setLevel(logging.ERROR)
 
 # from src import ore_data
 # from src import main
@@ -62,10 +71,14 @@ def Imageecognition(screenshot = Screenshot()):
     result: 识别结果
     ################
     """
-    ocr = PaddleOCR(
-    use_doc_orientation_classify=False, 
-    use_doc_unwarping=False, 
-    use_textline_orientation=False) # 文本检测+文本识别
+    # 抑制 PaddleOCR 的输出
+    null_stream = StringIO()
+    with redirect_stdout(null_stream), redirect_stderr(null_stream):
+        ocr = PaddleOCR(
+            use_doc_orientation_classify=False, 
+            use_doc_unwarping=False, 
+            use_textline_orientation=False) # 文本检测+文本识别
+        result = ocr.predict(screenshot)
     # ocr = PaddleOCR(use_doc_orientation_classify=True, use_doc_unwarping=True) # 文本图像预处理+文本检测+方向分类+文本识别
     # ocr = PaddleOCR(use_doc_orientation_classify=False, use_doc_unwarping=False) # 文本检测+文本行方向分类+文本识别
     # ocr = PaddleOCR(
@@ -74,23 +87,25 @@ def Imageecognition(screenshot = Screenshot()):
     #     use_doc_orientation_classify=False,
     #     use_doc_unwarping=False,
     #     use_textline_orientation=False) # 更换 PP-OCRv5_mobile 模型
-    result = ocr.predict(screenshot)
     # 清空 tmp 文件夹并保存结果
     clear_tmp_folder()
     for res in result:
         res.print()
-        res.save_to_img("./assets/tmp")
-        res.save_to_json("./assets/tmp")
+        # 抑制保存文件时的输出
+        with redirect_stdout(null_stream), redirect_stderr(null_stream):
+            res.save_to_img("./assets/tmp")
+            res.save_to_json("./assets/tmp")
 
     return result
 
-def Imageecognition_right_third(position_ratio: List[float] = None):
+def Imageecognition_right_third(position_ratio: List[float] = None, verbose: bool = True):
     """
     ### 对鼠标右上区域进行图像识别 ###
     参数：
     position_ratio: 鼠标位置比例 [x比例, y比例] (0.0到1.0之间)
                     例如：[0.33, 0.5] 表示鼠标在屏幕右侧1/3的上半边
                     如果为None，则使用默认值 [2/3, 0]（屏幕右侧1/3区域）
+    verbose: 是否打印OCR识别结果，默认为True
     返回：
     result: 识别结果（坐标已转换回原图坐标系）
     ################
@@ -127,15 +142,17 @@ def Imageecognition_right_third(position_ratio: List[float] = None):
     region = (left, top, width, height)
     screenshot = Screenshot(region=region)
     
-    # 初始化OCR
-    ocr = PaddleOCR(
-        use_doc_orientation_classify=False, 
-        use_doc_unwarping=False, 
-        use_textline_orientation=False
-    )
-    
-    # 对截图进行OCR识别
-    result = ocr.predict(screenshot)
+    # 初始化OCR（抑制输出）
+    # 使用 StringIO 来捕获并丢弃 PaddleOCR 的输出
+    null_stream = StringIO()
+    with redirect_stdout(null_stream), redirect_stderr(null_stream):
+        ocr = PaddleOCR(
+            use_doc_orientation_classify=False, 
+            use_doc_unwarping=False, 
+            use_textline_orientation=False
+        )
+        # 对截图进行OCR识别
+        result = ocr.predict(screenshot)
     
     # 将坐标转换回原图坐标系（加上偏移量）
     offset_x = left
@@ -143,6 +160,9 @@ def Imageecognition_right_third(position_ratio: List[float] = None):
     
     # 清空 tmp 文件夹
     clear_tmp_folder()
+    
+    # 创建新的 null_stream 用于保存文件时抑制输出
+    null_stream_save = StringIO()
     
     for res in result:
         # 辅助函数：转换多边形坐标
@@ -224,9 +244,12 @@ def Imageecognition_right_third(position_ratio: List[float] = None):
                     pass
         
         # 保存结果
-        res.print()
-        res.save_to_img("./assets/tmp")
-        res.save_to_json("./assets/tmp")
+        if verbose:
+            res.print()
+        # 抑制保存文件时的输出
+        with redirect_stdout(null_stream_save), redirect_stderr(null_stream_save):
+            res.save_to_img("./assets/tmp")
+            res.save_to_json("./assets/tmp")
     
     return result
 

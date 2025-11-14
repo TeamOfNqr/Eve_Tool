@@ -13,6 +13,9 @@ from dotenv import load_dotenv, find_dotenv,dotenv_values, set_key
 import os
 load_dotenv(find_dotenv())
 
+# from src import main
+import main
+
 # 从环境变量获取总览区域
 总览区域比例 = eval(os.getenv('总览区域比例'))
 
@@ -504,65 +507,145 @@ def parse_ocr_table_json(json_path: Union[str, Path, dict]) -> List[List[str]]:
             if text_cleaned != text:
                 rec_texts[i] = text_cleaned
     
-    # 找到表头行的索引和X坐标范围
+    # 先找到表头行的索引，用于排除表头中的距离单位
     header_texts = ["距离", "名字", "类型", "速度"]
+    header_indices_for_distance = set()  # 表头的索引集合（用于排除）
+    
+    for i, text in enumerate(rec_texts):
+        if text in header_texts:
+            header_indices_for_distance.add(i)
+    
+    # 找到第一个包含距离单位的文本索引（km、m、au，不区分大小写）
+    # 这将是数据行的起始点
+    first_distance_index = None
+    first_data_start_index = None  # 实际的数据起始索引
+    distance_units = ['km', 'm', 'au']  # 支持的距离单位
+    
+    for i, text in enumerate(rec_texts):
+        # 跳过表头行
+        if i in header_indices_for_distance:
+            continue
+            
+        if text and isinstance(text, str):
+            text_lower = text.lower().strip()
+            # 检查是否包含任何距离单位关键词
+            # 同时确保不是表头中的单位（如"速度（m"中的"m"）
+            for unit in distance_units:
+                if unit in text_lower:
+                    # 进一步检查：如果文本包含表头关键词，则跳过
+                    is_header = any(header in text for header in header_texts)
+                    if not is_header:
+                        first_distance_index = i
+                        # 如果文本就是单位本身（独立的单位，可能是因为识别问题导致的），从前一个文本开始
+                        if text_lower == unit and i > 0:
+                            # 从前一个文本开始（因为值和单位被分开了）
+                            first_data_start_index = i - 1
+                        else:
+                            # 从当前包含单位的文本开始（例如"18km"、"7,371m"）
+                            first_data_start_index = i
+                        break
+            if first_distance_index is not None:
+                break
+    
+    if first_distance_index is None or first_data_start_index is None:
+        raise ValueError("未找到包含距离单位的文本（km/m/au），无法确定数据行的起始位置")
+    
+    # 获取第一个距离文本的Y坐标，用于确定数据行的起始Y坐标
+    # 使用实际数据起始索引的Y坐标
+    first_data_box = rec_boxes[first_data_start_index]
+    first_data_y_min = first_data_box[1]  # y_min
+    first_data_y_max = first_data_box[3]  # y_max
+    first_data_y_center = (first_data_y_min + first_data_y_max) / 2
+    
+    # 同时也获取第一个距离单位文本的Y坐标，取两者的最小值作为数据行的起始Y坐标
+    # 这样可以确保包含第一个距离单位的行被包含进来
+    first_distance_box = rec_boxes[first_distance_index]
+    first_distance_y_min = first_distance_box[1]
+    first_distance_y_max = first_distance_box[3]
+    first_distance_y_center = (first_distance_y_min + first_distance_y_max) / 2
+    
+    # 使用更小的Y坐标（更靠上的位置）作为起始点，确保第一个数据行被包含
+    # 同时考虑Y坐标容差，确保同一行的文本都被包含
+    first_data_y_center = min(first_data_y_center, first_distance_y_center)
+    # 使用y_min作为起始Y坐标，这样更宽松
+    first_data_y_start = min(first_data_y_min, first_distance_y_min)
+    
+    # 找到表头行的索引和X坐标范围（仍然需要表头来确定列的范围）
+    # header_texts 已经在上面定义过了，这里直接使用
     header_info = {}  # {text: (index, x_min, x_max)}
-    header_y = None
+    header_indices = header_indices_for_distance.copy()  # 使用之前找到的表头索引
     
     for i, text in enumerate(rec_texts):
         if text in header_texts:
             x_min, y_min, x_max, y_max = rec_boxes[i]
             header_info[text] = (i, x_min, x_max)
-            # 获取表头行的Y坐标（使用y_min）
-            if header_y is None:
-                header_y = y_min
+            header_indices.add(i)
     
-    if len(header_info) < 3:  # 至少需要找到3个表头
-        raise ValueError("未找到足够的表头行（距离、名字、类型、速度）")
-    
-    # 根据表头确定列的X坐标范围
-    # 按X坐标排序表头
-    sorted_headers = sorted(header_info.items(), key=lambda x: x[1][1])  # 按x_min排序
-    
-    # 定义列的X坐标范围（使用表头的位置作为参考，并添加一些容差）
+    # 根据表头确定列的X坐标范围（如果找不到足够的表头，尝试使用默认列范围）
     column_ranges = []
-    for i, (text, (idx, x_min, x_max)) in enumerate(sorted_headers):
-        if i == 0:
-            # 第一列：从0到下一个表头的中间，但扩展一些范围
-            next_x = sorted_headers[i+1][1][1] if i+1 < len(sorted_headers) else x_max + 200
-            # 使用下一个表头的x_min作为边界，而不是中间点
-            column_ranges.append((0, next_x - 10))  # 减去10作为容差
-        elif i == len(sorted_headers) - 1:
-            # 最后一列：从前一列的结束到无穷大
-            prev_end = column_ranges[-1][1]
-            column_ranges.append((prev_end, float('inf')))
-        else:
-            # 中间列：从前一列的结束到下一个表头的开始
-            prev_end = column_ranges[-1][1]
-            next_x = sorted_headers[i+1][1][1]
-            column_ranges.append((prev_end, next_x - 10))  # 减去10作为容差
+    if len(header_info) >= 3:
+        # 按X坐标排序表头
+        sorted_headers = sorted(header_info.items(), key=lambda x: x[1][1])  # 按x_min排序
+        
+        # 定义列的X坐标范围（使用表头的位置作为参考，并添加一些容差）
+        for i, (text, (idx, x_min, x_max)) in enumerate(sorted_headers):
+            if i == 0:
+                # 第一列：从0到下一个表头的中间，但扩展一些范围
+                next_x = sorted_headers[i+1][1][1] if i+1 < len(sorted_headers) else x_max + 200
+                column_ranges.append((0, next_x - 10))  # 减去10作为容差
+            elif i == len(sorted_headers) - 1:
+                # 最后一列：从前一列的结束到无穷大
+                prev_end = column_ranges[-1][1]
+                column_ranges.append((prev_end, float('inf')))
+            else:
+                # 中间列：从前一列的结束到下一个表头的开始
+                prev_end = column_ranges[-1][1]
+                next_x = sorted_headers[i+1][1][1]
+                column_ranges.append((prev_end, next_x - 10))  # 减去10作为容差
+    else:
+        # 如果找不到足够的表头，使用更宽松的列范围
+        # 基于第一个数据文本的X坐标来估算列范围
+        first_data_x_min = first_data_box[0]
+        first_data_x_max = first_data_box[2]
+        # 估算列宽度（假设每列大约200像素）
+        estimated_col_width = 200
+        column_ranges = [
+            (0, first_data_x_max + estimated_col_width // 2),
+            (first_data_x_max + estimated_col_width // 2, first_data_x_max + estimated_col_width * 2),
+            (first_data_x_max + estimated_col_width * 2, first_data_x_max + estimated_col_width * 3),
+            (first_data_x_max + estimated_col_width * 3, float('inf'))
+        ]
     
     # 定义Y坐标容差（同一行的文本Y坐标应该相近）
     y_tolerance = 15
     
-    # 将文本按行分组
+    # 将文本按行分组，从第一个km文本开始处理
     rows = {}  # {y_center: [(index, text, x_min, x_center), ...]}
     
+    # 辅助函数：判断文本是否是距离（包含单位）
+    def is_distance(text):
+        if not text or not isinstance(text, str):
+            return False
+        text_lower = text.lower()
+        return any(unit in text_lower for unit in ['km', 'm', 'au'])
+    
     for i, (text, box) in enumerate(zip(rec_texts, rec_boxes)):
-        # 跳过空文本和表头行
+        # 跳过空文本
         if not text or not text.strip():
             continue
         
         # 跳过表头行
-        if i in [info[0] for info in header_info.values()]:
+        if i in header_indices:
             continue
         
         x_min, y_min, x_max, y_max = box
         y_center = (y_min + y_max) / 2
         x_center = (x_min + x_max) / 2
         
-        # 跳过表头行附近的文本（可能是表头本身）
-        if header_y is not None and abs(y_min - header_y) < y_tolerance * 2:
+        # 关键修改：只处理从第一个距离单位文本所在行或之后的数据
+        # 使用y_min进行比较，这样更宽松，确保第一个数据行被包含
+        # 如果当前文本的Y坐标明显在第一个数据行之上（超过容差），则跳过
+        if y_min < first_data_y_start - y_tolerance:
             continue
         
         # 过滤掉明显不是数据的文本（如单个字符、符号等）
@@ -597,13 +680,6 @@ def parse_ocr_table_json(json_path: Union[str, Path, dict]) -> List[List[str]]:
         # 根据列的X坐标范围分配数据
         row_data = ["-", "-", "-", "-"]  # [距离, 名字, 类型, 位置]
         distance_idx = None  # 保存距离文本的索引，用于获取rec_boxes
-        
-        # 辅助函数：判断文本是否是距离（包含单位）
-        def is_distance(text):
-            if not text:
-                return False
-            text_lower = text.lower()
-            return any(unit in text_lower for unit in ['km', 'm', 'au', 'km ', ' m', ' au'])
         
         for idx, text, x_min, x_center in items:
             # 首先尝试根据X坐标确定列
@@ -791,3 +867,199 @@ def random_click_in_inscribed_circle(
     except Exception as e:
         print(f"随机点击函数执行失败: {str(e)}")
         return False
+
+def find_keyword_position(name: Optional[str] = None) -> Optional[List[int]]:
+    """
+    ### 从tmp目录下的JSON文件中查找关键字对应的位置信息 ###
+    参数：
+    name: 关键字（字符串），默认为None
+    返回：
+    List[int]: 位置信息（rec_boxes的值），格式为 [x_min, y_min, x_max, y_max]
+    如果未找到关键字，返回None
+    异常：
+    FileNotFoundError: 如果tmp目录下没有找到JSON文件
+    ValueError: 如果name参数为None或空字符串
+    ##############################
+    """
+    import json
+    
+    # 参数验证
+    if not name or not isinstance(name, str) or not name.strip():
+        raise ValueError("name参数必须是非空字符串")
+    
+    # 查找tmp目录下的JSON文件
+    tmp_path = Path("assets/tmp")
+    if not tmp_path.exists():
+        raise FileNotFoundError(f"tmp目录不存在: {tmp_path}")
+    
+    # 查找所有JSON文件，按修改时间排序（最新的在前）
+    json_files = sorted(
+        tmp_path.glob("*.json"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True
+    )
+    
+    if not json_files:
+        raise FileNotFoundError(f"tmp目录下没有找到JSON文件: {tmp_path}")
+    
+    # 遍历所有JSON文件，找到第一个匹配的
+    for json_file in json_files:
+        try:
+            with open(json_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # 获取识别文本和边界框
+            rec_texts = data.get('rec_texts', [])
+            rec_boxes = data.get('rec_boxes', [])
+            
+            if not rec_texts or not rec_boxes:
+                continue
+            
+            if len(rec_texts) != len(rec_boxes):
+                continue
+            
+            # 在rec_texts中搜索关键字（不区分大小写，支持部分匹配）
+            name_lower = name.lower().strip()
+            for i, text in enumerate(rec_texts):
+                if text and isinstance(text, str):
+                    text_lower = text.lower().strip()
+                    # 检查是否包含关键字（支持部分匹配）
+                    if name_lower in text_lower:
+                        # 返回对应的rec_boxes值
+                        if i < len(rec_boxes):
+                            return rec_boxes[i]
+            
+        except Exception as e:
+            # 如果读取某个JSON文件失败，继续尝试下一个
+            print(f"读取JSON文件失败: {json_file}, 错误: {str(e)}")
+            continue
+    
+    # 如果没有找到匹配的关键字，返回None
+    return None
+
+def parse_distance_to_km(distance_str: str) -> float:
+    """
+    ### 将距离字符串转换为千米 ###
+    参数：
+    distance_str: 距离字符串，例如 "18km", "60m", "2.7 AU", "6,873 m"
+    返回：
+    float: 距离（千米）
+    ##############################
+    """
+    if not distance_str or distance_str == "-":
+        return float('inf')  # 无效距离返回无穷大
+    
+    # 移除空格并转换为小写
+    distance_str = distance_str.strip().lower()
+    
+    # 先移除数字中的逗号（千位分隔符），例如 "6,873" -> "6873", "1,234,567" -> "1234567"
+    # 使用全局替换，移除所有逗号（但保留小数点）
+    distance_str_cleaned = re.sub(r'(\d),(\d)', r'\1\2', distance_str)
+    # 如果还有逗号，继续移除（处理多个逗号的情况）
+    while ',' in distance_str_cleaned:
+        distance_str_cleaned = re.sub(r'(\d),(\d)', r'\1\2', distance_str_cleaned)
+    
+    # 匹配数字和单位（使用search而不是match，因为可能有前缀）
+    # 支持：数字（可能包含小数点）+ 可选空格 + 单位
+    match = re.search(r'([\d.]+)\s*([kmau]+)', distance_str_cleaned)
+    if not match:
+        return float('inf')
+    
+    try:
+        value = float(match.group(1))
+        unit = match.group(2).strip()
+        
+        # 根据单位转换
+        if unit == 'km':
+            return value
+        elif unit == 'm':
+            return value / 1000.0  # 米转千米
+        elif unit == 'au':
+            return value * 149597870.7  # AU转千米（1 AU ≈ 149,597,870.7 km）
+        else:
+            # 如果单位不明确，尝试判断
+            if 'km' in unit:
+                return value
+            elif 'm' in unit and 'km' not in unit:
+                return value / 1000.0
+            elif 'au' in unit:
+                return value * 149597870.7
+            else:
+                return float('inf')
+    except (ValueError, AttributeError):
+        return float('inf')
+
+def refresh_and_find_keyword_position(name: Optional[str] = None, verbose: bool = True) -> Optional[List[int]]:
+    """
+    ### 从tmp目录下的JSON文件中查找关键字对应的位置信息 ###
+    参数：
+    name: 关键字（字符串），默认为None
+    verbose: 是否打印OCR识别结果，默认为True
+    返回：
+    List[int]: 位置信息（rec_boxes的值），格式为 [x_min, y_min, x_max, y_max]
+    如果未找到关键字，返回None
+    异常：
+    FileNotFoundError: 如果tmp目录下没有找到JSON文件
+    ValueError: 如果name参数为None或空字符串
+    ##############################
+    """
+    import json
+    
+    main.Imageecognition_right_third(总览区域比例, verbose=verbose)
+
+    # 参数验证
+    if not name or not isinstance(name, str) or not name.strip():
+        raise ValueError("name参数必须是非空字符串")
+    
+    # 查找tmp目录下的JSON文件
+    tmp_path = Path("assets/tmp")
+    if not tmp_path.exists():
+        raise FileNotFoundError(f"tmp目录不存在: {tmp_path}")
+    
+    # 查找所有JSON文件，按修改时间排序（最新的在前）
+    json_files = sorted(
+        tmp_path.glob("*.json"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True
+    )
+    
+    if not json_files:
+        raise FileNotFoundError(f"tmp目录下没有找到JSON文件: {tmp_path}")
+    
+    # 遍历所有JSON文件，找到第一个匹配的
+    for json_file in json_files:
+        try:
+            with open(json_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # 获取识别文本和边界框
+            rec_texts = data.get('rec_texts', [])
+            rec_boxes = data.get('rec_boxes', [])
+            
+            if not rec_texts or not rec_boxes:
+                continue
+            
+            if len(rec_texts) != len(rec_boxes):
+                continue
+            
+            # 在rec_texts中搜索关键字（不区分大小写，支持部分匹配）
+            name_lower = name.lower().strip()
+            for i, text in enumerate(rec_texts):
+                if text and isinstance(text, str):
+                    text_lower = text.lower().strip()
+                    # 检查是否包含关键字（支持部分匹配）
+                    if name_lower in text_lower:
+                        # 返回对应的rec_boxes值
+                        if i < len(rec_boxes):
+                            return rec_boxes[i]
+            
+        except Exception as e:
+            # 如果读取某个JSON文件失败，继续尝试下一个
+            if verbose:
+                print(f"读取JSON文件失败: {json_file}, 错误: {str(e)}")
+            continue
+    
+    # 如果没有找到匹配的关键字，返回None
+    return None
+
+

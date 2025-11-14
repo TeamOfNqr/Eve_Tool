@@ -1,5 +1,15 @@
 import tkinter as tk
 from typing import Union, List, Tuple, Optional
+import os
+from pathlib import Path
+
+# 加载环境变量
+from dotenv import load_dotenv, find_dotenv,dotenv_values, set_key
+import os
+load_dotenv(find_dotenv())
+
+# 从环境变量获取总览区域
+overview_area = eval(os.getenv('总览区域'))
 
 def highlight_region(
     coordinates: Union[List[List[int]], List[int]], 
@@ -221,4 +231,161 @@ def get_region_by_clicks(
     
     return result
 
+def write_to_env(
+    function_name: str,
+    data: Union[str, int, float, bool, List, None],
+    env_file_path: str = ".env"
+):
+    """
+    ### 将数据写入.env文件中对应函数名的键 ###
+    参数：
+    function_name: 函数名（将转换为大写并添加下划线，如 "get_region" -> "GET_REGION"）
+    data: 要写入的数据（字符串、数字、布尔值、列表或None）
+        - 保持数据原格式，不做任何转换
+    env_file_path: .env文件路径（默认为".env"）
+    返回：
+    None
+    异常：
+    ValueError: 如果.env文件中不存在对应的函数键，或参数无效
+    IOError/OSError: 如果文件读写失败
+    ##############################
+    """
+    # 参数验证
+    if not function_name or not isinstance(function_name, str):
+        raise ValueError("function_name 必须是非空字符串")
+    
+    if not env_file_path or not isinstance(env_file_path, str):
+        raise ValueError("env_file_path 必须是非空字符串")
+    
+    # 处理数据格式：保持原格式，只做必要的字符串转换
+    if data is None:
+        data_str = ""
+    elif isinstance(data, (list, tuple)):
+        # 列表或元组保持列表格式
+        data_str = str(list(data))  # [1, 2, 3]
+    else:
+        # 数字、字符串、布尔值等直接转换为字符串，保持原格式
+        data_str = str(data)
+    
+    # 获取.env文件路径
+    env_path = Path(env_file_path)
+    
+    # 读取现有的.env文件内容
+    env_lines = []
+    key_found = False
+    matched_key = None
+    
+    try:
+        if env_path.exists():
+            # 检查文件是否为目录
+            if env_path.is_dir():
+                raise ValueError(f"路径 '{env_file_path}' 是一个目录，不是文件")
+            
+            # 读取文件内容
+            with open(env_path, 'r', encoding='utf-8') as f:
+                env_lines = f.readlines()
+    except PermissionError:
+        raise PermissionError(f"没有权限读取文件: {env_file_path}")
+    except Exception as e:
+        raise IOError(f"读取文件失败: {env_file_path}, 错误: {str(e)}")
+    
+    # 查找并更新对应的键
+    updated_lines = []
+    for line in env_lines:
+        # 去除行尾换行符
+        stripped_line = line.rstrip('\n\r')
+        
+        # 跳过空行和注释行
+        if not stripped_line or stripped_line.strip().startswith('#'):
+            updated_lines.append(line)
+            continue
+        
+        # 解析键值对
+        if '=' in stripped_line:
+            key, _ = stripped_line.split('=', 1)
+            key = key.strip()
+            
+            # 跳过空键
+            if not key:
+                updated_lines.append(line)
+                continue
+            
+            # 检查是否匹配（大小写不敏感，支持点号替换为下划线）
+            key_normalized = key.replace('.', '_').upper()
+            function_normalized = function_name.replace('.', '_').upper()
+            
+            # 匹配：键名（忽略大小写和点号/下划线）与函数名匹配
+            if key_normalized == function_normalized:
+                # 找到匹配的键，更新值
+                updated_lines.append(f"{key}={data_str}\n")
+                key_found = True
+                matched_key = key
+            else:
+                # 保持原行不变
+                updated_lines.append(line)
+        else:
+            # 保持原行不变
+            updated_lines.append(line)
+    
+    # 如果没有找到对应的键，抛出异常
+    if not key_found:
+        available_keys = []
+        for line in env_lines:
+            stripped_line = line.strip()
+            if '=' in stripped_line and not stripped_line.startswith('#'):
+                key = stripped_line.split('=', 1)[0].strip()
+                if key:
+                    available_keys.append(key)
+        
+        function_normalized = function_name.replace('.', '_').upper()
+        error_msg = f"在.env文件中未找到函数 '{function_name}' 对应的键"
+        if not env_path.exists():
+            error_msg += f"\n文件不存在: {env_file_path}"
+        else:
+            error_msg += f"\n期望的键格式（忽略大小写和点号/下划线）: {function_normalized}"
+            if available_keys:
+                error_msg += f"\n.env文件中可用的键: {', '.join(available_keys)}"
+            else:
+                error_msg += "\n.env文件中没有任何键"
+        
+        raise ValueError(error_msg)
+    
+    # 写回.env文件
+    temp_path = None
+    try:
+        # 确保目录存在（如果父目录不是根目录）
+        if env_path.parent != env_path:
+            try:
+                env_path.parent.mkdir(parents=True, exist_ok=True)
+            except (OSError, PermissionError) as e:
+                raise PermissionError(f"无法创建目录: {env_path.parent}, 错误: {str(e)}")
+        
+        # 写入文件（使用临时文件确保原子性写入）
+        temp_path = env_path.with_suffix(env_path.suffix + '.tmp')
+        with open(temp_path, 'w', encoding='utf-8') as f:
+            f.writelines(updated_lines)
+        
+        # 原子性替换原文件
+        if env_path.exists():
+            env_path.unlink()
+        temp_path.replace(env_path)
+        
+    except PermissionError as e:
+        # 清理临时文件
+        if temp_path and temp_path.exists():
+            try:
+                temp_path.unlink()
+            except:
+                pass
+        raise
+    except Exception as e:
+        # 清理临时文件
+        if temp_path and temp_path.exists():
+            try:
+                temp_path.unlink()
+            except:
+                pass
+        raise IOError(f"写入文件失败: {env_file_path}, 错误: {str(e)}")
 
+
+# highlight_region(overview_area, duration=3000)

@@ -666,5 +666,3 @@ def parse_ocr_table_json(json_path: Union[str, Path, dict]) -> List[List[str]]:
                 table_data.append(row_data)
     
     return table_data
-
-print(parse_ocr_table_json(json_path = "output/1763108441_2387_res.json"))

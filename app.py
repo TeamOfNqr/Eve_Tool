@@ -7,6 +7,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
+import src
+
 # 修复 Windows 上 DPI 访问权限警告：强制使用 system DPI aware 模式
 os.environ.setdefault("QT_QPA_PLATFORM", "windows:dpiawareness=1")
 
@@ -108,7 +110,7 @@ class MainWindow(QMainWindow):
         nav_content_layout.setSpacing(0)
 
         # 导航项
-        nav_items = ["主控制台", "信息栏", "关于", "调试页面"]
+        nav_items = ["信息栏","主控制台" , "关于", "调试页面"]
         self.nav_items = []
         for i, text in enumerate(nav_items):
             item = NavigationItem(text, i)
@@ -135,8 +137,8 @@ class MainWindow(QMainWindow):
 
         # 创建页面（从 pages.py 加载独立配置）
         pages = [
-            MainPage(),
             InfoPage(),
+            MainPage(),
             AboutPage(),
             DebugPage(),
         ]

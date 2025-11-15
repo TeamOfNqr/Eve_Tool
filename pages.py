@@ -26,6 +26,8 @@ from src import complex_events
 # import window_status
 # import complex_events
 
+# 从环境变量获取总览区域
+调试模式 = int(eval(os.getenv('调试模式')))
 
 class RealTimeTextStream(io.TextIOBase):
     """实时文本流，将输出实时写入 QTextEdit"""
@@ -521,7 +523,8 @@ class StandaloneControlBar(QMainWindow):
                 
                 # 确保透明度在 0.0 到 1.0 之间
                 self.opacity = max(0.0, min(1.0, self.opacity))
-                print(f"独立控制栏透明度已设置为: {self.opacity} ({self.opacity * 100:.0f}%)")
+                if 调试模式 == 1:
+                    print(f"独立控制栏透明度已设置为: {self.opacity} ({self.opacity * 100:.0f}%)")
             else:
                 self.opacity = 0.9
                 print("未找到透明度参数，使用默认值 0.9 (90%)")

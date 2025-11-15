@@ -11,12 +11,14 @@ import os
 load_dotenv(find_dotenv())
 import time
 
-# from src import main
-# from src import tools
-# from src import ore_data
-import main
-import tools
-import ore_data
+from src import ore_data
+from src import main
+from src import tools
+from src import window_status
+# import main
+# import tools
+# import ore_data
+# import window_status
 
 # 从环境变量获取总览区域
 总览区域比例 = eval(os.getenv('总览区域比例'))
@@ -270,5 +272,12 @@ def IceLock():
     except Exception as e:
         return False
 
-IceLock()
-# ore_data.IceMineral_Isk
+def Write_MousePlace():
+    print("3s后记录一号采集器位置")
+    time.sleep(3)
+    mouseplace = tools.get_mouse_position_after_delay()
+    tools.write_to_env("一号采集器位置", mouseplace)
+    print("3s后记录二号采集器位置")
+    time.sleep(3)
+    mouseplace = tools.get_mouse_position_after_delay()
+    tools.write_to_env("二号采集器位置", mouseplace)

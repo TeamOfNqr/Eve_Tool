@@ -13,7 +13,7 @@
 # 快速环境部署
 conda create --name EveTool_Env python=3.12
 conda activate EveTool_Env
-pip install PyQt6 pyautogui paddleocr dotenv easyocr src
+pip install PyQt6 pyautogui paddleocr dotenv easyocr src pywin32
 ```
 ```
 # 选装

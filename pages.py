@@ -1,5 +1,4 @@
 from functools import partial
-import sys
 import io
 import re
 from contextlib import redirect_stdout
@@ -7,12 +6,25 @@ from PyQt6.QtCore import QCoreApplication
 
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton, QGridLayout, QScrollArea
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton, QGridLayout, QScrollArea, QListWidget, QListWidgetItem, QMainWindow
 )
-from PyQt6.QtGui import QFont, QTextCursor
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QFont, QTextCursor, QColor, QMouseEvent
+from PyQt6.QtCore import Qt, QTimer, QPoint
 
+import os
+from dotenv import load_dotenv, find_dotenv
+load_dotenv(find_dotenv())
+
+from src import ore_data
+from src import main
+from src import tools
+from src import window_status
 from src import complex_events
+# import main
+# import tools
+# import ore_data
+# import window_status
+# import complex_events
 
 
 class RealTimeTextStream(io.TextIOBase):
@@ -473,7 +485,400 @@ class MainPage(QWidget):
         return '\n'.join(filtered_lines)
 
 
-class AboutPage(QWidget):
+
+
+class StandaloneControlBar(QMainWindow):
+    """独立控制栏窗口 - 永久前置的用户名列表"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+        # 拖动相关变量
+        self.drag_window_pos = None
+        self.drag_mouse_pos = None
+        
+        self.setWindowTitle("独立控制栏")
+        self.setWindowFlags(
+            Qt.WindowType.WindowStaysOnTopHint |  # 永久前置
+            Qt.WindowType.FramelessWindowHint |   # 无边框
+            Qt.WindowType.Tool                    # 工具窗口特性
+        )
+        
+        # 读取透明度参数（默认为 0.9，即 90% 不透明度）
+        # 确保重新加载 .env 文件以获取最新值
+        load_dotenv(find_dotenv(), override=True)
+        try:
+            opacity_str = os.getenv('独立控制栏透明度', '0.9')
+            if opacity_str:
+                # 去除空格
+                opacity_str = opacity_str.strip()
+                
+                # 支持百分比格式（如 "35%"）或小数格式（如 "0.35"）
+                if opacity_str.endswith('%'):
+                    # 百分比格式：35% -> 0.35
+                    percentage_value = float(opacity_str[:-1])
+                    self.opacity = percentage_value / 100.0
+                else:
+                    # 小数格式：直接转换为浮点数
+                    self.opacity = float(opacity_str)
+                
+                # 确保透明度在 0.0 到 1.0 之间
+                self.opacity = max(0.0, min(1.0, self.opacity))
+                print(f"独立控制栏透明度已设置为: {self.opacity} ({self.opacity * 100:.0f}%)")
+            else:
+                self.opacity = 0.9
+                print("未找到透明度参数，使用默认值 0.9 (90%)")
+        except (ValueError, TypeError) as e:
+            print(f"读取透明度参数时出错: {e}，使用默认值 0.9 (90%)")
+            self.opacity = 0.9
+        
+        # 读取颜色参数
+        self.bg_color = os.getenv('独立控制栏主背景色', '#e9ecef').strip()
+        self.list_bg_color = os.getenv('独立控制栏列表背景色', 'rgba(255, 255, 255, 200)').strip()
+        self.active_color = os.getenv('独立控制栏激活色', 'rgba(187, 222, 251, 200)').strip()
+        self.normal_text_color = os.getenv('独立控制栏普通文字色', '#000000').strip()
+        self.active_text_color = os.getenv('独立控制栏激活文字色', '#1976d2').strip()
+        
+        # 设置窗口透明度（需要在窗口标志设置之后）
+        self.setWindowOpacity(self.opacity)
+        
+        # 创建主窗口部件
+        central_widget = QWidget()
+        # 设置主背景色
+        central_widget.setStyleSheet(f"background-color: {self.bg_color};")
+        self.setCentralWidget(central_widget)
+        
+        # 主布局：水平布局，左侧拖动区域 + 右侧列表
+        main_layout = QHBoxLayout(central_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        
+        # 左侧拖动区域（空白区域，用于拖动窗口）
+        self.drag_area = QWidget()
+        self.drag_area.setFixedWidth(12)  # 12像素宽的拖动区域
+        self.drag_area.setStyleSheet("""
+            QWidget {
+                background-color: transparent;
+            }
+        """)
+        self.drag_area.mousePressEvent = self.drag_area_mousePressEvent
+        self.drag_area.mouseMoveEvent = self.drag_area_mouseMoveEvent
+        main_layout.addWidget(self.drag_area)
+        
+        # 右侧内容区域
+        content_layout = QVBoxLayout()
+        content_layout.setContentsMargins(2, 2, 2, 2)
+        content_layout.setSpacing(0)
+        
+        # 用户名列表
+        self.username_list = QListWidget()
+        # 使用从 .env 读取的颜色参数构建样式
+        list_style = f"""
+            QListWidget {{
+                background-color: {self.list_bg_color};
+                border: none;
+                border-radius: 4px;
+                padding: 0px;
+            }}
+            QListWidget::item {{
+                padding: 6px 12px 6px 16px;
+                border-radius: 2px;
+                margin: 0px;
+                min-height: 28px;
+                text-align: left;
+                color: {self.normal_text_color};
+            }}
+            QListWidget::item:hover {{
+                background-color: {self.active_color};
+            }}
+            QListWidget::item:selected {{
+                background-color: {self.active_color};
+                color: {self.active_text_color};
+            }}
+        """
+        self.username_list.setStyleSheet(list_style)
+        self.username_list.setFont(QFont("Microsoft YaHei", 9))
+        self.username_list.itemClicked.connect(self.on_username_clicked)
+        # 禁用滚动条，确保所有内容都显示
+        self.username_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.username_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        content_layout.addWidget(self.username_list)
+        
+        # 内容区域容器
+        content_widget = QWidget()
+        content_widget.setLayout(content_layout)
+        main_layout.addWidget(content_widget)
+        
+        # 设置固定宽度（拖动区域12px + 列表区域320px = 332px）
+        self.setFixedWidth(332)
+        
+        # 刷新列表
+        self.refresh_username_list()
+    
+    def drag_area_mousePressEvent(self, event: QMouseEvent):
+        """拖动区域的鼠标按下事件"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            # 记录窗口位置和鼠标位置
+            self.drag_window_pos = self.frameGeometry().topLeft()
+            self.drag_mouse_pos = event.globalPosition().toPoint()
+    
+    def drag_area_mouseMoveEvent(self, event: QMouseEvent):
+        """拖动区域的鼠标移动事件"""
+        if event.buttons() == Qt.MouseButton.LeftButton and hasattr(self, 'drag_window_pos'):
+            # 计算鼠标移动距离
+            delta = event.globalPosition().toPoint() - self.drag_mouse_pos
+            # 移动窗口
+            self.move(self.drag_window_pos + delta)
+    
+    def refresh_username_list(self):
+        """刷新用户名列表"""
+        self.username_list.clear()
+        
+        # 获取用户名列表
+        usernames = window_status.get_eve_usernames()
+        
+        # 添加用户名到列表
+        for username in usernames:
+            # 创建列表项，用户名靠左显示，右侧留空
+            item = QListWidgetItem(f"  {username}")  # 左侧添加空格，确保靠左
+            # 将用户名存储在 item 的 data 中，以便后续使用
+            item.setData(Qt.ItemDataRole.UserRole, username)
+            # 设置对齐方式：文字靠左，右侧留空
+            item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            item.setFont(QFont("Microsoft YaHei", 9))
+            self.username_list.addItem(item)
+        
+        # 根据列表项数量调整窗口高度
+        if usernames:
+            # 计算每个列表项的实际高度
+            # min-height: 28px + 上下padding各6px = 40px 每个列表项
+            item_min_height = 28
+            item_padding = 6 * 2  # 上下padding总和
+            actual_item_height = item_min_height + item_padding  # 40px
+            
+            # 布局边距：上下各2px
+            layout_margins = 4  # 上下边距总和
+            
+            # 计算总高度：列表项总高度 + 布局边距
+            total_height = len(usernames) * actual_item_height + layout_margins
+            
+            # 设置固定高度，确保所有内容都能显示
+            self.setFixedHeight(total_height)
+            
+            # 确保列表控件能正确显示所有项（减去布局边距）
+            list_height = total_height - layout_margins
+            self.username_list.setFixedHeight(list_height)
+        else:
+            # 如果没有窗口，设置最小高度
+            self.setFixedHeight(50)
+            self.username_list.setFixedHeight(46)
+    
+    def on_username_clicked(self, item):
+        """处理用户名点击事件"""
+        username = item.data(Qt.ItemDataRole.UserRole)
+        
+        if username:
+            # 根据用户名获取窗口句柄
+            hwnd = window_status.get_eve_hwnd_by_username(username)
+            
+            if hwnd is not None:
+                # 前置窗口
+                window_status.bring_window_to_front(hwnd)
+            else:
+                print(f"警告: 无法找到用户名为 '{username}' 的窗口句柄。")
+                # 刷新列表，可能窗口已关闭
+                QTimer.singleShot(300, self.refresh_username_list)
+
+
+class WindowsControlPage(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet("background-color: #e9ecef;")
+        
+        # 独立控制栏窗口引用
+        self.standalone_bar = None
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(16)
+        
+        # 标题
+        title = QLabel("▶ 窗口控制")
+        title.setFont(QFont("Microsoft YaHei", 16, QFont.Weight.Bold))
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("color: #333; padding: 10px;")
+        layout.addWidget(title)
+        
+        # 刷新按钮和窗口数量信息区域
+        button_layout = QHBoxLayout()
+        self.refresh_button = QPushButton("刷新窗口列表")
+        self.refresh_button.setFixedHeight(40)
+        self.refresh_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2196f3;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-size: 11pt;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #1976d2;
+            }
+            QPushButton:pressed {
+                background-color: #1565c0;
+            }
+        """)
+        self.refresh_button.clicked.connect(self.refresh_window_list)
+        button_layout.addWidget(self.refresh_button)
+        
+        # 独立控制栏按钮
+        self.standalone_bar_button = QPushButton("启动独立控制栏")
+        self.standalone_bar_button.setFixedHeight(40)
+        self.standalone_bar_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4caf50;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-size: 11pt;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton:pressed {
+                background-color: #3d8b40;
+            }
+        """)
+        self.standalone_bar_button.clicked.connect(self.toggle_standalone_bar)
+        button_layout.addWidget(self.standalone_bar_button)
+        
+        button_layout.addStretch()
+        
+        # 窗口数量信息标签
+        self.window_count_label = QLabel("当前: 0 个窗口")
+        self.window_count_label.setFont(QFont("Microsoft YaHei", 10))
+        self.window_count_label.setStyleSheet("""
+            color: #666;
+            padding: 8px 16px;
+            background-color: white;
+            border: 1px solid rgba(0, 0, 0, 20);
+            border-radius: 6px;
+        """)
+        button_layout.addWidget(self.window_count_label)
+        layout.addLayout(button_layout)
+        
+        # 窗口列表
+        list_label = QLabel("EVE 窗口列表（点击列表项可前置对应窗口）")
+        list_label.setFont(QFont("Microsoft YaHei", 11))
+        list_label.setStyleSheet("color: #555; padding: 4px 0;")
+        layout.addWidget(list_label)
+        
+        self.window_list = QListWidget()
+        self.window_list.setStyleSheet("""
+            QListWidget {
+                background-color: white;
+                border: 1px solid rgba(0, 0, 0, 35);
+                border-radius: 8px;
+                padding: 4px;
+            }
+            QListWidget::item {
+                padding: 10px;
+                border-radius: 4px;
+                margin: 2px;
+            }
+            QListWidget::item:hover {
+                background-color: #e3f2fd;
+            }
+            QListWidget::item:selected {
+                background-color: #bbdefb;
+                color: #1976d2;
+            }
+        """)
+        self.window_list.setFont(QFont("Microsoft YaHei", 10))
+        self.window_list.itemClicked.connect(self.on_window_item_clicked)
+        layout.addWidget(self.window_list)
+        
+        # 初始化时加载窗口列表
+        self.refresh_window_list()
+    
+    def refresh_window_list(self):
+        """刷新窗口列表"""
+        # 清空当前列表
+        self.window_list.clear()
+        
+        # 获取窗口信息
+        windows_info = window_status.get_eve_windows_info()
+        
+        # 添加窗口到列表
+        for window_data in windows_info:
+            title, hwnd, is_active = window_data
+            
+            # 创建列表项
+            item = QListWidgetItem(title)
+            
+            # 将 hwnd 存储在 item 的 data 中
+            if hwnd is not None:
+                item.setData(Qt.ItemDataRole.UserRole, hwnd)
+            
+            # 如果窗口是激活状态，可以添加特殊标记
+            if is_active:
+                item.setText(f"● {title}")
+                item.setForeground(QColor(25, 118, 210))  # 蓝色，表示激活状态
+            
+            # 设置字体
+            item.setFont(QFont("Microsoft YaHei", 10))
+            
+            self.window_list.addItem(item)
+        
+        # 更新窗口数量信息标签
+        count = len(windows_info)
+        self.window_count_label.setText(f"当前: {count} 个窗口")
+    
+    def on_window_item_clicked(self, item):
+        """处理列表项点击事件"""
+        # 获取存储的 hwnd
+        hwnd = item.data(Qt.ItemDataRole.UserRole)
+        
+        if hwnd is not None:
+            # 前置窗口
+            success = window_status.bring_window_to_front(hwnd)
+            if success:
+                # 刷新列表以更新激活状态
+                QTimer.singleShot(300, self.refresh_window_list)  # 延迟300ms刷新，确保窗口状态已更新
+            else:
+                # 如果前置失败，可能是窗口已关闭，刷新列表
+                QTimer.singleShot(300, self.refresh_window_list)
+        else:
+            print(f"警告: 窗口 '{item.text()}' 的句柄无效，无法前置。")
+    
+    def toggle_standalone_bar(self):
+        """切换独立控制栏的显示/隐藏"""
+        if self.standalone_bar is None or not self.standalone_bar.isVisible():
+            # 创建并显示独立控制栏
+            self.standalone_bar = StandaloneControlBar()
+            self.standalone_bar.show()
+            self.standalone_bar_button.setText("关闭独立控制栏")
+            
+            # 设置窗口位置（可以放在屏幕右上角）
+            screen = self.standalone_bar.screen().availableGeometry()
+            self.standalone_bar.move(screen.width() - self.standalone_bar.width() - 20, 20)
+        else:
+            # 关闭独立控制栏
+            self.standalone_bar.close()
+            self.standalone_bar = None
+            self.standalone_bar_button.setText("启动独立控制栏")
+    
+    def close_standalone_bar(self):
+        """关闭独立控制栏（供外部调用）"""
+        if self.standalone_bar is not None:
+            self.standalone_bar.close()
+            self.standalone_bar = None
+            if hasattr(self, 'standalone_bar_button'):
+                self.standalone_bar_button.setText("启动独立控制栏")
+
+
+class DebugPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setStyleSheet("background-color: #e9ecef;")
@@ -485,135 +890,3 @@ class AboutPage(QWidget):
         title.setStyleSheet("color: #333; padding: 20px;")
         layout.addWidget(title)
 
-
-class DebugPage(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setStyleSheet("background-color: #dee2e6;")
-
-        layout = QVBoxLayout(self)
-
-        # 标题
-        title = QLabel("▶ 调试页面")
-        title.setFont(QFont("Microsoft YaHei", 16, QFont.Weight.Bold))
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("color: #333; padding: 16px 20px;")
-        layout.addWidget(title)
-
-        # 第一行：按钮一 + 文本框一
-        row1 = QHBoxLayout()
-        btn1 = QPushButton("运行函数一")
-        btn1.setFixedHeight(36)
-        self.output1 = QTextEdit()
-        self.output1.setReadOnly(True)
-        self.output1.setPlaceholderText("函数一输出将显示在此处...")
-        self.output1.setFixedHeight(80)
-        row1.addWidget(btn1)
-        row1.addWidget(self.output1)
-        layout.addLayout(row1)
-
-        # 第二行：按钮二 + 文本框二
-        row2 = QHBoxLayout()
-        btn2 = QPushButton("运行函数二")
-        btn2.setFixedHeight(36)
-        self.output2 = QTextEdit()
-        self.output2.setReadOnly(True)
-        self.output2.setPlaceholderText("函数二输出将显示在此处...")
-        self.output2.setFixedHeight(80)
-        row2.addWidget(btn2)
-        row2.addWidget(self.output2)
-        layout.addLayout(row2)
-
-        # 第三行：按钮三 + 文本框三
-        row3 = QHBoxLayout()
-        btn3 = QPushButton("运行函数三")
-        btn3.setFixedHeight(36)
-        self.output3 = QTextEdit()
-        self.output3.setReadOnly(True)
-        self.output3.setPlaceholderText("函数三输出将显示在此处...")
-        self.output3.setFixedHeight(80)
-        row3.addWidget(btn3)
-        row3.addWidget(self.output3)
-        layout.addLayout(row3)
-
-        # 第四行：按钮四 + 文本框四
-        row4 = QHBoxLayout()
-        btn4 = QPushButton("运行函数四")
-        btn4.setFixedHeight(36)
-        self.output4 = QTextEdit()
-        self.output4.setReadOnly(True)
-        self.output4.setPlaceholderText("函数四输出将显示在此处...")
-        self.output4.setFixedHeight(80)
-        row4.addWidget(btn4)
-        row4.addWidget(self.output4)
-        layout.addLayout(row4)
-
-        # 第五行：按钮五 + 文本框五
-        row5 = QHBoxLayout()
-        btn5 = QPushButton("运行函数五")
-        btn5.setFixedHeight(36)
-        self.output5 = QTextEdit()
-        self.output5.setReadOnly(True)
-        self.output5.setPlaceholderText("函数五输出将显示在此处...")
-        self.output5.setFixedHeight(80)
-        row5.addWidget(btn5)
-        row5.addWidget(self.output5)
-        layout.addLayout(row5)
-
-        # 信号连接
-        btn1.clicked.connect(self.on_btn1_clicked)
-        btn2.clicked.connect(self.on_btn2_clicked)
-        btn3.clicked.connect(self.on_btn3_clicked)
-        btn4.clicked.connect(self.on_btn4_clicked)
-        btn5.clicked.connect(self.on_btn5_clicked)
-
-    # 示例函数与槽，可替换为实际业务逻辑
-    def on_btn1_clicked(self):
-        try:
-            result = self.debug_func_one()
-        except Exception as e:
-            result = f"执行函数一发生错误：{e}"
-        self.output1.setPlainText(str(result))
-
-    def on_btn2_clicked(self):
-        try:
-            result = self.debug_func_two()
-        except Exception as e:
-            result = f"执行函数二发生错误：{e}"
-        self.output2.setPlainText(str(result))
-
-    def on_btn3_clicked(self):
-        try:
-            result = self.debug_func_three()
-        except Exception as e:
-            result = f"执行函数三发生错误：{e}"
-        self.output3.setPlainText(str(result))
-
-    def on_btn4_clicked(self):
-        try:
-            result = self.debug_func_four()
-        except Exception as e:
-            result = f"执行函数四发生错误：{e}"
-        self.output4.setPlainText(str(result))
-
-    def on_btn5_clicked(self):
-        try:
-            result = self.debug_func_five()
-        except Exception as e:
-            result = f"执行函数五发生错误：{e}"
-        self.output5.setPlainText(str(result))
-
-    def debug_func_one(self):
-        return "函数一已执行：这是示例输出。"
-
-    def debug_func_two(self):
-        return "函数二已执行：这是另一个示例输出。"
-
-    def debug_func_three(self):
-        return "函数三已执行：占位示例输出。"
-
-    def debug_func_four(self):
-        return "函数四已执行：占位示例输出。"
-
-    def debug_func_five(self):
-        return "函数五已执行：占位示例输出。"

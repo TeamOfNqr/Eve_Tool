@@ -6,13 +6,12 @@ import numpy as np
 from typing import Union, List
 import os
 import logging
-import sys
 from contextlib import redirect_stdout, redirect_stderr
 from io import StringIO
 
+
 # 加载环境变量
 from dotenv import load_dotenv, find_dotenv,dotenv_values, set_key
-import os
 load_dotenv(find_dotenv())
 
 import shutil
@@ -22,12 +21,13 @@ logging.getLogger('ppocr').setLevel(logging.ERROR)
 logging.getLogger('paddleocr').setLevel(logging.ERROR)
 logging.getLogger('paddlex').setLevel(logging.ERROR)
 
-# from src import ore_data
-# from src import main
-# from src import tools
-import main
-import tools
-import ore_data
+
+from src import ore_data
+from src import tools
+from src import window_status
+# import tools
+# import ore_data
+# import window_status
 
 # 从环境变量获取总览区域
 overview_area = eval(os.getenv('总览区域'))
@@ -253,4 +253,36 @@ def Imageecognition_right_third(position_ratio: List[float] = None, verbose: boo
     
     return result
 
+def is_state_active(template_path, threshold= 0.7):
+    """
+    这是一段判断函数，通过对比关键截图模板与屏幕截图，给出相似率
+    判断当前屏幕是否包含指定模板图像（即角色处于某状态）
+    当前用于判断角色是否出站
+
+    :param template_path: 模板图像路径（如 'dead_flag.png'）
+    :param threshold: 匹配阈值，0.8 通常较可靠
+    :return: 
+        - 若 DEBUG=0 → bool (True/False)
+        - 若 DEBUG=1 → list [bool, float] (匹配结果, 匹配率)
+    """
+    # 截图
+    screenshot = pyautogui.screenshot()
+    screenshot = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+
+    # 获取脚本所在目录，拼接模板路径（确保路径正确）
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    full_template_path = os.path.join(project_root, template_path)
+
+    # 读取模板
+    template = cv2.imread(full_template_path, cv2.IMREAD_COLOR)
+    if template is None:
+        raise FileNotFoundError(f"模板文件未找到: {full_template_path}")
+
+    # 模板匹配
+    result = cv2.matchTemplate(screenshot, template, cv2.TM_CCOEFF_NORMED)
+    _, max_val, _, _ = cv2.minMaxLoc(result)
+
+    matched = max_val >= threshold
+
+    return [matched, max_val]
 

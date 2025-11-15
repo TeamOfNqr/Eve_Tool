@@ -8,12 +8,19 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon
 
-import src
+from src import ore_data
+from src import main
+from src import tools
+from src import window_status
+# import main
+# import tools
+# import ore_data
+# import window_status
 
 # 修复 Windows 上 DPI 访问权限警告：强制使用 system DPI aware 模式
 os.environ.setdefault("QT_QPA_PLATFORM", "windows:dpiawareness=1")
 
-from pages import MainPage, InfoPage, AboutPage, DebugPage
+from pages import MainPage, InfoPage, WindowsControlPage, DebugPage
 
 class NavigationItem(QFrame):
     """极致紧凑型导航项"""
@@ -77,7 +84,7 @@ class MainWindow(QMainWindow):
         self.resize(1000, 700)
         
         # 设置窗口图标（使用相对路径）
-        icon_path = Path(__file__).parent / "assets" / "image" / "nqr.jpg"
+        icon_path = Path(__file__).parent / "assets" / "image" / "logo.jpg"
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
 
@@ -116,7 +123,7 @@ class MainWindow(QMainWindow):
         nav_content_layout.setSpacing(0)
 
         # 导航项
-        nav_items = ["信息栏","主控制台" , "关于", "调试页面"]
+        nav_items = ["信息栏","主控制台" , "窗口控制", "关于"]
         self.nav_items = []
         for i, text in enumerate(nav_items):
             item = NavigationItem(text, i)
@@ -145,12 +152,15 @@ class MainWindow(QMainWindow):
         pages = [
             InfoPage(),
             MainPage(),
-            AboutPage(),
+            WindowsControlPage(),
             DebugPage(),
         ]
 
         for page in pages:
             self.stacked_widget.addWidget(page)
+        
+        # 保存 WindowsControlPage 的引用，以便在关闭时关闭独立控制栏
+        self.windows_control_page = pages[2]
 
         # 默认选中第一个
         self.nav_items[0].set_selected(True)
@@ -165,12 +175,19 @@ class MainWindow(QMainWindow):
         for i, item in enumerate(self.nav_items):
             item.set_selected(i == index)
         self.stacked_widget.setCurrentIndex(index)
+    
+    def closeEvent(self, event):
+        """主窗口关闭事件处理"""
+        # 关闭独立控制栏
+        if hasattr(self, 'windows_control_page'):
+            self.windows_control_page.close_standalone_bar()
+        event.accept()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     
     # 设置应用程序图标（使用相对路径）
-    icon_path = Path(__file__).parent / "assets" / "image" / "nqr.jpg"
+    icon_path = Path(__file__).parent / "assets" / "image" / "logo.jpg"
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
     

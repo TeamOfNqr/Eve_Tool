@@ -13,8 +13,12 @@ from dotenv import load_dotenv, find_dotenv,dotenv_values, set_key
 import os
 load_dotenv(find_dotenv())
 
-# from src import main
-import main
+from src import ore_data
+from src import main
+from src import window_status
+# import main
+# import ore_data
+# import window_status
 
 # 从环境变量获取总览区域
 总览区域比例 = eval(os.getenv('总览区域比例'))
@@ -418,6 +422,23 @@ def get_mouse_position_ratio() -> List[float]:
     
     # 返回比例列表，保留两位小数
     return [round(x_ratio, 2), round(y_ratio, 2)]
+
+def get_mouse_position_after_delay() -> List[int]:
+    """
+    ### 3秒后记录鼠标位置并返回绝对坐标 ###
+    返回：
+    [x, y] - 鼠标位置的绝对坐标（像素）
+    例如：如果鼠标在屏幕(1920, 1080)位置，返回[1920, 1080]
+    ##############################
+    """
+    print("3秒后将记录鼠标位置")
+    time.sleep(3)
+
+    # 获取鼠标当前位置
+    mouse_x, mouse_y = pyautogui.position()
+    
+    # 返回绝对坐标列表
+    return [mouse_x, mouse_y]
 
 def parse_ocr_table_json(json_path: Union[str, Path, dict]) -> List[List[str]]:
     """

@@ -20,7 +20,7 @@ from src import window_status
 # 修复 Windows 上 DPI 访问权限警告：强制使用 system DPI aware 模式
 os.environ.setdefault("QT_QPA_PLATFORM", "windows:dpiawareness=1")
 
-from pages import MainPage, InfoPage, WindowsControlPage, DebugPage
+from pages import MainPage, InfoPage, WindowsControlPage, AboutPage
 
 class NavigationItem(QFrame):
     """极致紧凑型导航项"""
@@ -153,7 +153,7 @@ class MainWindow(QMainWindow):
             InfoPage(),
             MainPage(),
             WindowsControlPage(),
-            DebugPage(),
+            AboutPage(),
         ]
 
         for page in pages:

@@ -879,16 +879,75 @@ class WindowsControlPage(QWidget):
                 self.standalone_bar_button.setText("启动独立控制栏")
 
 
-class DebugPage(QWidget):
+class AboutPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setStyleSheet("background-color: #e9ecef;")
 
         layout = QVBoxLayout(self)
-        title = QLabel("▶ 关于")
-        title.setFont(QFont("Microsoft YaHei", 16, QFont.Weight.Bold))
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("color: #333; padding: 20px;")
-        layout.addWidget(title)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(0)
+        
+        # 创建滚动区域和文本编辑器来显示Markdown内容
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setStyleSheet("""
+            QScrollArea {
+                background-color: white;
+                border: 1px solid rgba(0, 0, 0, 35);
+                border-radius: 8px;
+            }
+        """)
+        
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(20, 20, 20, 20)
+        
+        self.about_text = QTextEdit()
+        self.about_text.setReadOnly(True)
+        self.about_text.setStyleSheet("""
+            QTextEdit {
+                background-color: transparent;
+                border: none;
+                font-family: 'Microsoft YaHei', 'SimHei', sans-serif;
+                font-size: 11pt;
+            }
+        """)
+        
+        # 读取并显示about.md文件
+        self.load_about_content()
+        
+        content_layout.addWidget(self.about_text)
+        scroll_area.setWidget(content_widget)
+        layout.addWidget(scroll_area)
+    
+    def load_about_content(self):
+        """加载about.md文件内容"""
+        try:
+            # 获取about.md文件的路径
+            # pages.py在根目录，所以只需要一次dirname
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            about_file = os.path.join(current_dir, 'src', 'about.md')
+            
+            # 如果上面的路径不存在，尝试其他可能的路径
+            if not os.path.exists(about_file):
+                # 尝试相对于当前工作目录
+                about_file = os.path.join('src', 'about.md')
+            
+            if os.path.exists(about_file):
+                with open(about_file, 'r', encoding='utf-8') as f:
+                    markdown_content = f.read()
+                # 使用setMarkdown方法渲染Markdown内容
+                self.about_text.setMarkdown(markdown_content)
+            else:
+                # 显示调试信息
+                debug_info = f"未找到 about.md 文件\n"
+                debug_info += f"尝试的路径1: {os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src', 'about.md')}\n"
+                debug_info += f"尝试的路径2: {os.path.join('src', 'about.md')}\n"
+                debug_info += f"当前工作目录: {os.getcwd()}\n"
+                debug_info += f"pages.py位置: {os.path.abspath(__file__)}"
+                self.about_text.setPlainText(debug_info)
+        except Exception as e:
+            self.about_text.setPlainText(f"加载 about.md 文件时出错: {str(e)}\n\n错误详情: {type(e).__name__}")
 
 

@@ -8,7 +8,8 @@
   - [CUDA12.9 Windows](https://developer.download.nvidia.com/compute/cuda/12.9.0/local_installers/cuda_12.9.0_576.02_windows.exe)
   - [Scoop 安装](https://csdiy.wiki/%E5%BF%85%E5%AD%A6%E5%B7%A5%E5%85%B7/Scoop/)
   - [PaddleOCR 文档](https://www.paddleocr.ai/main/index.html)
-- 
+
+
 ```
 # 快速环境部署
 conda create --name EveTool_Env python=3.12

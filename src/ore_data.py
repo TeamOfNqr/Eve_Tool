@@ -13,7 +13,6 @@ IceMineral=[
     ['黑闪冰','BlackFlash_Ice.png','none','none','929','True'],
     ['朴白釉冰','PlainWhite_Ice.png','none','none','449','True'],
     ['加里多斯冰矿','Gleidos_Ice.png','none','none','870','True'],
-
     ['高密度清冰锥','none','none','none','309','False'],
     ['高密度电冰体','none','none','none','648','False'],
     ['高密度聚合冰体','none','none','none','298','False'],

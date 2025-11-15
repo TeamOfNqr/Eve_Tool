@@ -485,8 +485,6 @@ class MainPage(QWidget):
         return '\n'.join(filtered_lines)
 
 
-
-
 class StandaloneControlBar(QMainWindow):
     """独立控制栏窗口 - 永久前置的用户名列表"""
     def __init__(self, parent=None):
@@ -889,4 +887,5 @@ class DebugPage(QWidget):
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("color: #333; padding: 20px;")
         layout.addWidget(title)
+
 

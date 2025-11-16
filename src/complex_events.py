@@ -19,6 +19,7 @@ from src import window_status
 # import tools
 # import ore_data
 # import window_status
+import pyautogui
 
 # 从环境变量获取总览区域
 总览区域比例 = eval(os.getenv('总览区域比例'))
@@ -281,3 +282,31 @@ def Write_MousePlace():
     time.sleep(3)
     mouseplace = tools.get_mouse_position_after_delay()
     tools.write_to_env("二号采集器位置", mouseplace)
+
+def list_positioning():
+    """
+    通过延时记录鼠标位置定位信息窗口的区域参数
+
+    返回:
+        tuple: 包含 (x1, y1, width, height) 的元组，用于定位窗口区域
+    """
+    print("请将鼠标移动到列表左上角，3秒后记录...")
+    time.sleep(3)
+    x1, y1 = pyautogui.position()
+    print(f"左上角坐标: ({x1}, {y1})")
+
+    print("请将鼠标移动到列表右下角，3秒后记录...")
+    time.sleep(3)
+    x2, y2 = pyautogui.position()
+    print(f"右下角坐标: ({x2}, {y2})")
+
+    width = x2 - x1
+    height = y2 - y1
+
+    positioning = (x1, y1, width, height)
+
+    print(f"\n✅ 最终区域参数: region = ({x1}, {y1}, {width}, {height})")
+
+    tools.highlight_region_on_screen(rect=(x1, y1, width, height))
+
+    return positioning

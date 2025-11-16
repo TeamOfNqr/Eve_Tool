@@ -438,7 +438,7 @@ class MainPage(QWidget):
         # 包装为函数，以便实时捕获输出
         def update_lock_status_area():
             print("开始更新锁定状态监控区...")
-            positioning = tools.list_positioning()
+            positioning = complex_events.list_positioning()
             result = tools.write_to_env(function_name="锁定状态监控区", data=positioning)
             print(f"\n锁定状态监控区已更新为: {positioning}")
             return result

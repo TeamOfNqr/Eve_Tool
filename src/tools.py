@@ -1030,35 +1030,6 @@ def area_screenshot(region = None):
     
     return screenshot
 
-def list_positioning():
-    
-    """
-    通过延时记录鼠标位置定位信息窗口的区域参数
-
-    返回:
-        tuple: 包含 (x1, y1, width, height) 的元组，用于定位窗口区域
-    """
-    print("请将鼠标移动到列表左上角，3秒后记录...")
-    time.sleep(3)
-    x1, y1 = pyautogui.position()
-    print(f"左上角坐标: ({x1}, {y1})")
-
-    print("请将鼠标移动到列表右下角，3秒后记录...")
-    time.sleep(3)
-    x2, y2 = pyautogui.position()
-    print(f"右下角坐标: ({x2}, {y2})")
-
-    width = x2 - x1
-    height = y2 - y1
-
-    positioning = (x1, y1, width, height)
-
-    print(f"\n✅ 最终区域参数: region = ({x1}, {y1}, {width}, {height})")
-
-    highlight_region_on_screen(rect = (x1, y1, width, height))
-
-    return (positioning)
-
 
 def highlight_region_on_screen(rect, duration=2000):
     """
@@ -1097,3 +1068,4 @@ def highlight_region_on_screen(rect, duration=2000):
 
     # 启动窗口（非阻塞主逻辑需在主线程调用）
     root.mainloop()
+

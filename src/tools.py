@@ -17,9 +17,8 @@ load_dotenv(find_dotenv())
 from src import ore_data
 from src import main
 from src import window_status
-# import main
-# import ore_data
-# import window_status
+from src import complex_events
+
 
 # 从环境变量获取总览区域
 总览区域比例 = eval(os.getenv('总览区域比例'))
@@ -1166,6 +1165,10 @@ def parse_warehouse_space_json(json_path: Union[str, Path, dict]) -> Optional[Tu
     # 合并所有文本为一个字符串进行处理
     all_text = ' '.join([text for text in rec_texts if text])
     
+    # 去除最前面的括号及其内容（如果存在）
+    # 匹配最前面的括号，例如 "(xxx)" 格式，包含括号本身
+    all_text = re.sub(r'^\([^)]*\)\s*', '', all_text)
+    
     # 移除空格，尝试匹配格式：数字/数字m³ 或 数字/数字,数字m³
     # 支持各种可能的格式：0/18500.0m³、0/18,500.0m³、0 / 18500.0 m³ 等
     # 正则表达式：匹配 "数字/数字（可能包含逗号）m³" 的格式
@@ -1231,4 +1234,24 @@ def parse_warehouse_space_json(json_path: Union[str, Path, dict]) -> Optional[Tu
     
     return None
 
-
+def CollectorClick():
+    """
+    ### 自动采集器点击函数 ###
+    自动点击采集器，并进行挖掘
+    返回：
+    True: 成功
+    False: 失败
+    ################
+    """
+    if complex_events.IceOreLocked_State():
+        第一采集器位置 = eval(os.getenv('第一采集器位置'))
+        第二采集器位置 = eval(os.getenv('第二采集器位置'))
+        time.sleep(0.2)
+        random_click_in_circle(center = 第一采集器位置)
+        time.sleep(0.2)
+        random_click_in_circle(center = 第二采集器位置)
+        return True
+    else:
+        print("采集器点击失败")
+        print("请尝试人工介入")
+        return False

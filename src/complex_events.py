@@ -4,6 +4,8 @@ from paddleocr import PaddleOCR
 import numpy as np
 from typing import Union, List
 import os
+import math
+import random
 
 # 加载环境变量
 from dotenv import load_dotenv, find_dotenv,dotenv_values, set_key
@@ -73,6 +75,25 @@ def OverviewScale_Change():
         return True
     except:
         print("总览比例修改函数执行失败")
+        return False
+
+def CompressedArea_Change():
+    """
+    ### 压缩交互区修改函数 ###
+    参数：
+        无
+    返回：
+        True: 成功
+        False: 失败
+    ################
+    """
+    try:
+        scale = tools.get_mouse_position_ratio()
+        tools.write_to_env("压缩交互区", scale)
+        print("压缩交互区写入完成")
+        return True
+    except:
+        print("压缩交互区修改函数执行失败")
         return False
 
 def IceLock():
@@ -439,7 +460,6 @@ def AutomaticIce_Mining():
     """
     IceLock()
     time.sleep(2)
-    print(IceOreLocked_State())
     if IceOreLocked_State():
         print("矿石已锁定")
         第一采集器位置 = eval(os.getenv('第一采集器位置'))
@@ -530,7 +550,7 @@ def WarehouseSpace_Monitor():
             print(f"调试: WarehouseSpace_Monitor() 执行失败: {str(e)}")
         return False
 
-def AutoIceMining_Monitor_Forone    ():
+def AutoIceMining_Monitor_Forone():
     """
     ### 自动挖冰矿以及监控函数 ###
     自动执行冰矿挖掘并监控矿仓状态
@@ -551,7 +571,7 @@ def AutoIceMining_Monitor_Forone    ():
             else:
                 # 未在挖掘，执行自动挖掘
                 print("采集器未在挖掘，执行自动挖掘...")
-                if not AutomaticIce_Mining():
+                if not tools.CollectorClick():
                     print("矿石锁定失败或不在挖掘范围，请人工调整")
                     return False
         else:
@@ -566,8 +586,24 @@ def AutoIceMining_Monitor_Forone    ():
         print("开始监控矿仓状态...")
         while True:
             if WarehouseSpace_Monitor():
-                print("请人工介入")
-                return False
+                # 矿仓已满，执行压缩操作
+                print("检测到矿仓已满，执行压缩操作...")
+                if not Compress_Interaction():
+                    print("矿石压缩失败，请人工介入")
+                    return False
+                
+                # 等待压缩操作完成，给系统一些时间更新状态
+                time.sleep(2)
+                
+                # 再次检测矿仓空间
+                print("压缩后重新检测矿仓空间...")
+                if WarehouseSpace_Monitor():
+                    # 压缩后依旧满，说明压缩操作虽然执行了但没有成功释放空间
+                    print("矿仓矿石压缩失败，请人工介入")
+                    return False
+                else:
+                    # 压缩成功，空间已释放，继续监控
+                    print("压缩成功，矿仓空间已释放，继续监控...")
             else:
                 # WarehouseSpace_Monitor() 内部已经打印了矿仓剩余空间
                 pass
@@ -581,4 +617,160 @@ def AutoIceMining_Monitor_Forone    ():
             print(f"调试: AutoIceMining_Monitor() 执行失败: {str(e)}")
         print("自动挖冰矿监控函数执行失败")
         return False
+
+def Compress_Interaction(radius=2):
+    """
+    ### 压缩交互函数 ###
+    执行压缩操作的交互流程：
+    1. 在压缩交互右下定位点的radius像素半径范围内随机一点鼠标按下
+    2. 等待0.1秒后，在按下状态的同时鼠标移动到压缩交互左上定位点的radius像素半径范围内随机一点
+    3. 等待0.1秒后松开
+    4. 再等待0.2秒后进行鼠标右键点击操作
+    5. 在压缩交互区（左下区域）内识别"压缩"关键词，然后鼠标移动到对应位置后等待0.2s左键点击
+    
+    参数：
+        radius (int): 随机点的像素半径范围，默认为2
+    返回：
+        True: 成功
+        False: 失败
+    ################
+    """
+    try:
+        # 初始化环境变量
+        压缩交互左上定位点 = eval(os.getenv('压缩交互左上定位点'))
+        压缩交互右下定位点 = eval(os.getenv('压缩交互右下定位点'))
+        压缩交互区 = eval(os.getenv('压缩交互区'))
+        
+        # 验证定位点格式
+        if not isinstance(压缩交互左上定位点, (list, tuple)) or len(压缩交互左上定位点) != 2:
+            print("错误: 压缩交互左上定位点格式不正确")
+            return False
+        if not isinstance(压缩交互右下定位点, (list, tuple)) or len(压缩交互右下定位点) != 2:
+            print("错误: 压缩交互右下定位点格式不正确")
+            return False
+        if not isinstance(压缩交互区, (list, tuple)) or len(压缩交互区) != 2:
+            print("错误: 压缩交互区格式不正确")
+            return False
+        
+        # 步骤1: 在压缩交互右下定位点的radius像素半径范围内随机一点鼠标按下
+        x_right, y_right = 压缩交互右下定位点
+        # 在圆形区域内生成均匀分布的随机点（使用极坐标）
+        r1 = radius * math.sqrt(random.random())
+        theta1 = random.uniform(0, 2 * math.pi)
+        offset_x1 = int(r1 * math.cos(theta1))
+        offset_y1 = int(r1 * math.sin(theta1))
+        start_x = x_right + offset_x1
+        start_y = y_right + offset_y1
+        
+        # 移动鼠标到起始位置并按下
+        pyautogui.moveTo(start_x, start_y)
+        time.sleep(0.1)
+        pyautogui.mouseDown(button='left')
+        
+        # 步骤2: 等待0.1秒后，在按下状态的同时鼠标移动到压缩交互左上定位点的radius像素半径范围内随机一点
+        time.sleep(0.1)
+        x_left, y_left = 压缩交互左上定位点
+        # 在圆形区域内生成均匀分布的随机点（使用极坐标）
+        r2 = radius * math.sqrt(random.random())
+        theta2 = random.uniform(0, 2 * math.pi)
+        offset_x2 = int(r2 * math.cos(theta2))
+        offset_y2 = int(r2 * math.sin(theta2))
+        end_x = x_left + offset_x2
+        end_y = y_left + offset_y2
+        
+        # 在按下状态的同时移动鼠标
+        pyautogui.moveTo(end_x, end_y, duration=0.1)
+        
+        # 步骤3: 等待0.1秒后松开
+        time.sleep(0.1)
+        pyautogui.mouseUp(button='left')
+        
+        # 步骤4: 再等待0.2秒后进行鼠标右键点击操作
+        time.sleep(0.2)
+        pyautogui.rightClick(end_x, end_y)
+        
+        # 步骤5: 在压缩交互区（左下区域）内识别"压缩"关键词，然后鼠标移动到对应位置后等待0.2s左键点击
+        # 将屏幕分割比例转换为左下区域
+        screen_width, screen_height = pyautogui.size()
+        x_ratio, y_ratio = 压缩交互区
+        
+        # 计算左下区域
+        # 左下区域：从(0, y_ratio * screen_height)到(x_ratio * screen_width, screen_height)
+        left = 0
+        top = int(screen_height * y_ratio)
+        width = int(screen_width * x_ratio)
+        height = screen_height - top
+        
+        region = (left, top, width, height)
+        
+        if 调试模式 == 1:
+            print(f"调试: 左下区域 region = {region}")
+            print(f"调试: 屏幕尺寸 = ({screen_width}, {screen_height})")
+            print(f"调试: 压缩交互区比例 = ({x_ratio}, {y_ratio})")
+        
+        # 执行OCR识别
+        main.Imageecognition(region=region, verbose=False)
+        
+        # 查找"压缩"关键词的位置
+        compress_position = tools.find_keyword_position("压缩", refresh=False, verbose=False)
+        
+        if compress_position is None:
+            print("未找到'压缩'关键词")
+            return False
+        
+        # 计算"压缩"关键词的中心位置
+        x_min, y_min, x_max, y_max = compress_position
+        
+        if 调试模式 == 1:
+            print(f"调试: 找到'压缩'关键词位置（相对坐标）= [{x_min}, {y_min}, {x_max}, {y_max}]")
+            print(f"调试: 识别区域偏移量 offset = ({left}, {top})")
+            # 验证坐标是否在识别区域内（考虑偏移量）
+            print(f"调试: 坐标应该在屏幕范围: x in [0, {screen_width}], y in [{top}, {screen_height}]")
+            # 验证坐标是否在识别区域内
+            print(f"调试: 坐标应该在识别区域内: x in [{left}, {left + width}], y in [{top}, {top + height}]")
+        
+        # 补偿识别区域的偏移量：将识别区域内的相对坐标转换为屏幕绝对坐标
+        # 类似于 random_click_in_inscribed_circle 中的处理方式
+        x_min = x_min + left
+        y_min = y_min + top
+        x_max = x_max + left
+        y_max = y_max + top
+        
+        if 调试模式 == 1:
+            print(f"调试: 转换后的坐标（绝对坐标）= [{x_min}, {y_min}, {x_max}, {y_max}]")
+        
+        center_x = (x_min + x_max) // 2
+        center_y = (y_min + y_max) // 2
+        
+        # 验证坐标是否在合理范围内
+        if center_x < 0 or center_x > screen_width or center_y < 0 or center_y > screen_height:
+            print(f"警告: 计算的中心位置 ({center_x}, {center_y}) 超出屏幕范围!")
+            print(f"屏幕范围: ({screen_width}, {screen_height})")
+            if 调试模式 == 1:
+                print(f"调试: 这可能表示坐标转换有问题")
+            return False
+        
+        # 验证坐标是否在识别区域内（考虑偏移量）
+        if center_x < left or center_x > left + width or center_y < top or center_y > top + height:
+            if 调试模式 == 1:
+                print(f"警告: 计算的中心位置 ({center_x}, {center_y}) 不在识别区域内!")
+                print(f"识别区域: x in [{left}, {left + width}], y in [{top}, {top + height}]")
+        
+        if 调试模式 == 1:
+            print(f"调试: 计算的中心位置 = ({center_x}, {center_y})")
+        
+        # 鼠标移动到对应位置后等待0.2s左键点击
+        pyautogui.moveTo(center_x, center_y)
+        time.sleep(0.2)
+        pyautogui.click(center_x, center_y, button='left')
+        
+        print("压缩交互操作完成")
+        return True
+        
+    except Exception as e:
+        if 调试模式 == 1:
+            print(f"调试: Compress_Interaction() 执行失败: {str(e)}")
+        print("压缩交互函数执行失败")
+        return False
+
 

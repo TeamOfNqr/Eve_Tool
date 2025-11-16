@@ -271,21 +271,21 @@ class MainPage(QWidget):
         right_layout.addWidget(self.button6)
 
         # 创建按钮7
-        self.button7 = QPushButton("更新压缩交互域")
+        self.button7 = QPushButton("更新压缩交互左上定位点")
         self.button7.setFixedHeight(36)
         self.button7.setStyleSheet(button_style)
         self.button7.clicked.connect(self.on_button7_clicked)
         right_layout.addWidget(self.button7)
 
         # 创建按钮8
-        self.button8 = QPushButton("按钮8")
+        self.button8 = QPushButton("更新压缩交互右下定位点")
         self.button8.setFixedHeight(36)
         self.button8.setStyleSheet(button_style)
         self.button8.clicked.connect(self.on_button8_clicked)
         right_layout.addWidget(self.button8)
 
         # 创建按钮9
-        self.button9 = QPushButton("按钮9")
+        self.button9 = QPushButton("更新压缩交互区")
         self.button9.setFixedHeight(36)
         self.button9.setStyleSheet(button_style)
         self.button9.clicked.connect(self.on_button9_clicked)
@@ -461,25 +461,30 @@ class MainPage(QWidget):
 
     def on_button7_clicked(self):
         """按钮7点击处理"""
-        # 在这里添加按钮7的具体处理逻辑
         # 包装为函数，以便实时捕获输出
-        def update_lock_status_area():
-            print("开始更新压缩交互域...")
-            positioning = complex_events.list_positioning()
-            result = tools.write_to_env(function_name="压缩交互域", data=positioning)
-            print(f"\n压缩交互域已更新为: {positioning}")
+        def update_first_collector():
+            print("开始更新压缩交互左上定位点...")
+            position = tools.get_mouse_position_after_delay()
+            result = tools.write_to_env(function_name="压缩交互左上定位点", data=position)
+            print(f"压缩交互左上定位点已更新为: {position}")
             return result
-        self._update_console("压缩交互域", update_lock_status_area)
+        self._update_console("更新压缩交互左上定位点", update_first_collector)
 
     def on_button8_clicked(self):
         """按钮8点击处理"""
         # 在这里添加按钮8的具体处理逻辑
-        self._update_console("按钮8")
+        # 包装为函数，以便实时捕获输出
+        def update_first_collector():
+            print("开始更新压缩交互右下定位点...")
+            position = tools.get_mouse_position_after_delay()
+            result = tools.write_to_env(function_name="压缩交互右下定位点", data=position)
+            print(f"压缩交互右下定位点已更新为: {position}")
+            return result
+        self._update_console("更新压缩交互右下定位点", update_first_collector)
 
     def on_button9_clicked(self):
         """按钮9点击处理"""
-        # 在这里添加按钮9的具体处理逻辑
-        self._update_console("按钮9")
+        self._update_console("更新压缩交互区", complex_events.CompressedArea_Change)
 
     def on_button10_clicked(self):
         """按钮10点击处理"""
@@ -985,5 +990,4 @@ class AboutPage(QWidget):
         except Exception as e:
             self.about_text.setPlainText(f"加载 about.md 文件时出错: {str(e)}\n\n错误详情: {type(e).__name__}")
 
-complex_events.AutoIceMining_Monitor()
 

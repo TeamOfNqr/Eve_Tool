@@ -3,7 +3,7 @@ import io
 import re
 from contextlib import redirect_stdout
 from PyQt6.QtCore import QCoreApplication
-
+import time
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton, QGridLayout, QScrollArea, QListWidget, QListWidgetItem, QMainWindow
@@ -28,6 +28,9 @@ from src import complex_events
 
 # 从环境变量获取总览区域
 调试模式 = int(eval(os.getenv('调试模式')))
+锁定状态监控区 = eval(os.getenv('锁定状态监控区'))
+
+
 
 class RealTimeTextStream(io.TextIOBase):
     """实时文本流，将输出实时写入 QTextEdit"""
@@ -969,3 +972,17 @@ class AboutPage(QWidget):
             self.about_text.setPlainText(f"加载 about.md 文件时出错: {str(e)}\n\n错误详情: {type(e).__name__}")
 
 
+
+
+# complex_events.IceLock()
+# if not complex_events.IceMining_Status():
+#     第一采集器位置 = int(eval(os.getenv('第一采集器位置')))
+#     第二采集器位置 = int(eval(os.getenv('第二采集器位置')))
+#     tools.random_click_in_circle(center = 第一采集器位置)
+#     time.sleep(0.2)
+#     tools.random_click_in_circle(center = 第
+
+# screenshot_ = tools.area_screenshot(region = 锁定状态监控区)
+# main.Imageecognition(region = 锁定状态监控区)
+
+print(complex_events.IceOreLocked_State())

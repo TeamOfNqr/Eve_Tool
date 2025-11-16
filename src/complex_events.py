@@ -25,6 +25,7 @@ import pyautogui
 总览区域比例 = eval(os.getenv('总览区域比例'))
 矿头挖掘距离 = int(eval(os.getenv('矿头挖掘距离')))
 调试模式 = int(eval(os.getenv('调试模式')))
+锁定状态监控区 = eval(os.getenv('锁定状态监控区'))
 
 def Info_Show():
     """
@@ -183,7 +184,8 @@ def IceLock():
             
             # 如果没有匹配到任何矿石，跳过这一行
             if matched_ore_name is None or matched_price is None:
-                print(f"调试: 未匹配到矿石类型: {ore_type}，跳过")
+                if 调试模式 == 1 :
+                    print(f"调试: 未匹配到矿石类型: {ore_type}，跳过")
                 continue
             
             # 添加到有效矿石列表
@@ -310,3 +312,118 @@ def list_positioning():
     tools.highlight_region_on_screen(rect=(x1, y1, width, height))
 
     return positioning
+
+def IceMining_Status():
+    """
+    锁定状态监控区状态判断函数
+    返回：
+    True: 采集器正在挖掘
+    False: 采集器未在挖掘
+    ################
+    """
+    # 使用 main.Screenshot() 获取已转换为 numpy 数组的截图
+    area = main.Screenshot(region=锁定状态监控区)
+    result = main.is_state_active(template_path="assets/image/IceMining.png", screenshot_=area)
+    print(result)
+
+    if result[0]:
+        print("采集器正在挖掘")
+        return True
+    else:
+        print("采集器未在挖掘")
+        return False
+
+def IceOreLocked_State():
+    """
+    ### 冰矿锁定状态检查函数 ###
+    检查锁定状态监控区是否包含冰矿矿石
+    返回：
+    True: 包含冰矿矿石
+    False: 不包含冰矿矿石或识别失败
+    ################
+    """
+    try:
+        # 执行OCR识别
+        main.Imageecognition(region=锁定状态监控区, verbose=False)
+        
+        # 查找 assets/tmp 目录中的 JSON 文件并处理
+        tmp_path = "./assets/tmp"
+        json_file = None
+        if os.path.exists(tmp_path):
+            for filename in os.listdir(tmp_path):
+                if filename.endswith('.json'):
+                    json_file = os.path.join(tmp_path, filename)
+                    break
+        
+        if not json_file:
+            return False
+        
+        # 读取JSON文件
+        import json
+        with open(json_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        # 获取识别文本
+        rec_texts = data.get('rec_texts', [])
+        if not rec_texts:
+            return False
+        
+        # 从 ore_data.IceMineral_Isk 中提取所有矿石名称（除了表头）
+        ore_names = []
+        for ore_item in ore_data.IceMineral_Isk:
+            if len(ore_item) > 0 and ore_item[0] != 'core-name':  # 跳过表头
+                ore_name = ore_item[0]  # 矿石名称
+                ore_names.append(ore_name)
+        
+        # 检查 rec_texts 中是否包含任何矿石名称
+        # 将所有文本合并为一个字符串进行检查
+        all_text = ' '.join([str(text) for text in rec_texts if text])
+        
+        # 检查是否包含任何矿石名称
+        for ore_name in ore_names:
+            if ore_name in all_text:
+                if 调试模式 == 1:
+                    print(f"调试: 在锁定状态监控区找到矿石: {ore_name}")
+                return True
+        
+        # 如果完全匹配没有找到，尝试部分匹配（参考 IceLock() 的匹配逻辑）
+        for text in rec_texts:
+            if not text or not isinstance(text, str):
+                continue
+            
+            text_str = str(text).strip()
+            
+            # 1. 首先尝试完全匹配
+            if text_str in ore_names:
+                if 调试模式 == 1:
+                    print(f"调试: 完全匹配到矿石: {text_str}")
+                return True
+            
+            # 2. 尝试提取括号内的内容（例如"小行星(白釉冰)" -> "白釉冰"）
+            import re
+            match = re.search(r'\(([^)]+)\)', text_str)
+            if match:
+                extracted_name = match.group(1)
+                if extracted_name in ore_names:
+                    if 调试模式 == 1:
+                        print(f"调试: 括号匹配到矿石: {text_str} -> {extracted_name}")
+                    return True
+            
+            # 3. 尝试部分匹配（例如"高密度白釉冰"包含"白釉冰"）
+            # 按名称长度排序，优先匹配更长的名称
+            sorted_ore_names = sorted(ore_names, key=len, reverse=True)
+            for ore_name in sorted_ore_names:
+                # 检查矿石名称是否包含在文本中，或者文本是否包含矿石名称
+                if ore_name in text_str or text_str in ore_name:
+                    if 调试模式 == 1:
+                        print(f"调试: 部分匹配到矿石: {text_str} -> {ore_name}")
+                    return True
+        
+        if 调试模式 == 1:
+            print("调试: 未在锁定状态监控区找到任何冰矿矿石")
+        return False
+        
+    except Exception as e:
+        if 调试模式 == 1:
+            print(f"调试: IceOreLocked_State() 执行失败: {str(e)}")
+        return False

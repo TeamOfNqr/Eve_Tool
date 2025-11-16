@@ -76,14 +76,194 @@ class RealTimeTextStream(io.TextIOBase):
 class InfoPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setStyleSheet("background-color: #ffffff;")
+        self.setStyleSheet("background-color: #f8f9fa;")
 
-        layout = QVBoxLayout(self)
-        title = QLabel("主控制台")
-        title.setFont(QFont("Microsoft YaHei", 16, QFont.Weight.Bold))
+        # 主布局：水平布局，左侧70%控制台，右侧30%按钮区域
+        main_layout = QHBoxLayout(self)
+        main_layout.setContentsMargins(16, 16, 16, 16)
+        main_layout.setSpacing(16)
+
+        # 构建左侧控制台区域（70%）
+        self._build_console_panel()
+        
+        # 构建右侧按钮区域（30%）
+        self._build_button_panel()
+
+        # 添加到主布局，设置比例
+        main_layout.addWidget(self.console_panel, stretch=7)  # 70%
+        main_layout.addWidget(self.button_panel, stretch=3)   # 30%
+
+    def _build_console_panel(self):
+        """构建左侧控制台面板（70%）"""
+        self.console_panel = QWidget()
+        self.console_panel.setStyleSheet("background-color: transparent;")
+        console_layout = QVBoxLayout()
+        console_layout.setContentsMargins(0, 0, 0, 0)
+        console_layout.setSpacing(8)
+        self.console_panel.setLayout(console_layout)
+
+        # 标题
+        console_label = QLabel("控制台")
+        console_label.setFont(QFont("Microsoft YaHei", 12, QFont.Weight.Bold))
+        console_label.setStyleSheet("color: #333; padding: 4px 0;")
+        console_layout.addWidget(console_label)
+
+        # 控制台容器
+        console_container = QWidget()
+        console_container.setStyleSheet(
+            """
+            background-color: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 35);
+            border-radius: 8px;
+            """
+        )
+        container_layout = QVBoxLayout()
+        container_layout.setContentsMargins(12, 12, 12, 12)
+        console_container.setLayout(container_layout)
+
+        # 控制台文本显示区域
+        self.console_display = QTextEdit()
+        self.console_display.setReadOnly(True)
+        self.console_display.setPlaceholderText("按钮触发的函数输出将显示在这里...")
+        self.console_display.setStyleSheet(
+            """
+            QTextEdit {
+                background-color: transparent;
+                border: none;
+                padding: 8px;
+                font-family: 'Consolas', 'Courier New', monospace;
+                font-size: 10pt;
+            }
+            """
+        )
+        container_layout.addWidget(self.console_display)
+        console_layout.addWidget(console_container)
+
+    def _build_button_panel(self):
+        """构建右侧按钮面板（30%）"""
+        self.button_panel = QWidget()
+        self.button_panel.setStyleSheet("background-color: transparent;")
+        button_layout = QVBoxLayout()
+        button_layout.setContentsMargins(0, 0, 0, 0)
+        button_layout.setSpacing(10)
+        self.button_panel.setLayout(button_layout)
+
+        # 标题
+        title = QLabel("操作按钮")
+        title.setFont(QFont("Microsoft YaHei", 12, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("color: #333; padding: 20px;")
-        layout.addWidget(title)
+        title.setStyleSheet("color: #333; padding: 8px; background-color: #ffffff; border-radius: 6px;")
+        button_layout.addWidget(title)
+
+        # 按钮样式
+        button_style = """
+            QPushButton {
+                background-color: #f1f3f5;
+                border: 1px solid rgba(0, 0, 0, 30);
+                border-radius: 6px;
+                padding: 6px 12px;
+                color: #212529;
+                font-size: 10pt;
+            }
+            QPushButton:hover {
+                background-color: #e7eff9;
+                border-color: rgba(0, 102, 204, 80);
+            }
+            QPushButton:pressed {
+                background-color: #d9e5f5;
+                border-color: rgba(0, 102, 204, 120);
+            }
+        """
+
+        # 创建4个按钮
+        self.button1 = QPushButton("按钮1")
+        self.button1.setFixedHeight(36)
+        self.button1.setStyleSheet(button_style)
+        self.button1.clicked.connect(self.on_button1_clicked)
+        button_layout.addWidget(self.button1)
+
+        self.button2 = QPushButton("按钮2")
+        self.button2.setFixedHeight(36)
+        self.button2.setStyleSheet(button_style)
+        self.button2.clicked.connect(self.on_button2_clicked)
+        button_layout.addWidget(self.button2)
+
+        self.button3 = QPushButton("按钮3")
+        self.button3.setFixedHeight(36)
+        self.button3.setStyleSheet(button_style)
+        self.button3.clicked.connect(self.on_button3_clicked)
+        button_layout.addWidget(self.button3)
+
+        self.button4 = QPushButton("按钮4")
+        self.button4.setFixedHeight(36)
+        self.button4.setStyleSheet(button_style)
+        self.button4.clicked.connect(self.on_button4_clicked)
+        button_layout.addWidget(self.button4)
+
+        # 添加弹性空间，使按钮置顶
+        button_layout.addStretch()
+
+    def _update_console(self, button_name, func=None):
+        """更新控制台显示的辅助方法"""
+        try:
+            # 清空控制台
+            self.console_display.clear()
+            
+            # 添加按钮名称和时间戳
+            import time
+            timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+            self.console_display.append(f"[{timestamp}] 执行: {button_name}")
+            self.console_display.append("-" * 50)
+            
+            # 如果提供了函数，执行并实时捕获输出
+            if func:
+                try:
+                    # 创建实时流
+                    realtime_stream = RealTimeTextStream(self.console_display)
+                    
+                    with redirect_stdout(realtime_stream):
+                        result = func()
+                    
+                    # 处理剩余的缓冲区
+                    realtime_stream.flush()
+                    
+                    # 显示返回值
+                    if result is not None:
+                        self.console_display.append("-" * 50)
+                        self.console_display.append(f"返回值: {result}")
+                        cursor = self.console_display.textCursor()
+                        cursor.movePosition(QTextCursor.MoveOperation.End)
+                        self.console_display.setTextCursor(cursor)
+                except Exception as e:
+                    self.console_display.append(f"函数执行出错: {str(e)}")
+                    cursor = self.console_display.textCursor()
+                    cursor.movePosition(QTextCursor.MoveOperation.End)
+                    self.console_display.setTextCursor(cursor)
+            else:
+                # 如果没有提供函数，显示提示信息
+                self.console_display.append("该按钮暂无功能")
+                cursor = self.console_display.textCursor()
+                cursor.movePosition(QTextCursor.MoveOperation.End)
+                self.console_display.setTextCursor(cursor)
+        except Exception as e:
+            error_msg = f"函数执行出错: {str(e)}"
+            self.console_display.setPlainText(error_msg)
+
+    def on_button1_clicked(self):
+        """按钮1点击处理：触发自动冰矿挖掘监控"""
+        self._update_console("自动冰矿挖掘监控", complex_events.AutoIceMining_Monitor_Forone())
+
+    def on_button2_clicked(self):
+        """按钮2点击处理：暂无功能"""
+        self._update_console("按钮2", None)
+
+    def on_button3_clicked(self):
+        """按钮3点击处理：暂无功能"""
+        self._update_console("按钮3", None)
+
+    def on_button4_clicked(self):
+        """按钮4点击处理：暂无功能"""
+        self._update_console("按钮4", None)
 
 
 class MainPage(QWidget):
@@ -990,4 +1170,4 @@ class AboutPage(QWidget):
         except Exception as e:
             self.about_text.setPlainText(f"加载 about.md 文件时出错: {str(e)}\n\n错误详情: {type(e).__name__}")
 
-
+complex_events.AutoIceMining_Monitor_Forone()

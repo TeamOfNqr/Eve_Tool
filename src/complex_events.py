@@ -467,3 +467,66 @@ def AutomaticIce_Mining():
             print("请尝试人工介入")
             return False
 
+def WarehouseSpace_Monitor():
+    """
+    ### 矿仓剩余空间监控函数 ###
+    监控矿仓的剩余空间，若检测到仓库已满或是剩余空间<20%，则返回True，反之则False
+    返回：
+    True: 仓库已满或剩余空间 < 20%
+    False: 剩余空间 >= 20%
+    ################
+    """
+    try:
+        # 从环境变量读取监控区域
+        矿仓剩余空间监控区 = eval(os.getenv('矿仓剩余空间监控区'))
+        
+        # 执行OCR识别
+        main.Imageecognition(region=矿仓剩余空间监控区, verbose=False)
+        
+        # 查找 assets/tmp 目录中的 JSON 文件并处理
+        tmp_path = "./assets/tmp"
+        json_file = None
+        if os.path.exists(tmp_path):
+            for filename in os.listdir(tmp_path):
+                if filename.endswith('.json'):
+                    json_file = os.path.join(tmp_path, filename)
+                    break
+        
+        if not json_file:
+            if 调试模式 == 1:
+                print("调试: 未找到JSON文件")
+            return False
+        
+        # 解析矿仓剩余空间信息
+        result = tools.parse_warehouse_space_json(json_file)
+        
+        if result is None:
+            if 调试模式 == 1:
+                print("调试: 无法解析矿仓剩余空间信息")
+            return False
+        
+        used_space, total_space = result
+        
+        # 计算剩余空间和百分比
+        remaining_space = total_space - used_space
+        remaining_percentage = (remaining_space / total_space * 100) if total_space > 0 else 0
+        
+        if 调试模式 == 1:
+            print(f"调试: 已用空间: {used_space}m³, 总空间: {total_space}m³")
+            print(f"调试: 剩余空间: {remaining_space}m³, 剩余百分比: {remaining_percentage:.2f}%")
+        
+        # 检查是否已满或剩余空间 < 20%
+        is_full = (used_space >= total_space) or (remaining_percentage < 20.0)
+        
+        if is_full:
+            print(f"警告: 矿仓已满或剩余空间不足 ({remaining_percentage:.2f}%)")
+        else:
+            print(f"矿仓剩余空间: {remaining_space:.1f}m³ ({remaining_percentage:.2f}%)")
+        
+        return is_full
+        
+    except Exception as e:
+        if 调试模式 == 1:
+            print(f"调试: WarehouseSpace_Monitor() 执行失败: {str(e)}")
+        return False
+

@@ -1107,4 +1107,128 @@ def random_click_in_circle(center, button=0, radius=3, delay_before_click=0.3):
         interval=0.0
     )
 
+def parse_warehouse_space_json(json_path: Union[str, Path, dict]) -> Optional[Tuple[float, float]]:
+    """
+    ### 从OCR结果JSON文件中解析矿仓剩余空间信息 ###
+    参数：
+    json_path: JSON文件路径或已加载的字典对象
+    返回：
+    Tuple[float, float]: (已用空间, 总空间) 单位：m³
+    如果解析失败，返回 None
+    注意：
+    - 识别结果可能是 "0/18,500.0m³" 格式，也可能被识别为分开的文本
+    - 例如：["0/18,500.0", "m³"] 或 ["0", "/", "18,500.0", "m³"] 等
+    - 会智能合并相关文本并进行解析
+    ##############################
+    """
+    import json
+    
+    # 加载JSON数据
+    if isinstance(json_path, dict):
+        data = json_path
+    else:
+        json_path = Path(json_path)
+        if not json_path.exists():
+            return None
+        
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    
+    # 获取识别文本（创建副本以避免修改原始数据）
+    rec_texts = [str(text).strip() for text in data.get('rec_texts', [])]
+    
+    if not rec_texts:
+        return None
+    
+    # 处理分离的单位：将独立的 "m³"、"m3" 等与前一个文本合并
+    indices_to_remove = []
+    
+    for i in range(1, len(rec_texts)):
+        text = rec_texts[i]
+        # 检查是否是独立的单位（不区分大小写）
+        text_normalized = text.replace('³', '3').replace('²', '2').lower().strip()
+        # 检查是否是 "m3" 或 "m³" 等单独的单位
+        if text_normalized in ["m3", "m³"]:
+            # 与前一个文本合并
+            if i > 0:
+                prev_text = rec_texts[i - 1]
+                # 检查上一个文本是否已经包含单位（避免重复合并）
+                prev_text_normalized = prev_text.replace('³', '3').replace('²', '2').lower()
+                if not prev_text_normalized.endswith("m3") and not prev_text_normalized.endswith("m³"):
+                    rec_texts[i - 1] = prev_text + text
+                    indices_to_remove.append(i)
+    
+    # 从后向前删除已合并的单位项（避免索引错乱）
+    for idx in reversed(indices_to_remove):
+        if idx < len(rec_texts):
+            rec_texts.pop(idx)
+    
+    # 合并所有文本为一个字符串进行处理
+    all_text = ' '.join([text for text in rec_texts if text])
+    
+    # 移除空格，尝试匹配格式：数字/数字m³ 或 数字/数字,数字m³
+    # 支持各种可能的格式：0/18500.0m³、0/18,500.0m³、0 / 18500.0 m³ 等
+    # 正则表达式：匹配 "数字/数字（可能包含逗号）m³" 的格式
+    # 数字可以是整数或小数，可能包含千分位逗号
+    pattern = r'(\d+(?:,\d{3})*(?:\.\d+)?)\s*/\s*(\d+(?:,\d{3})*(?:\.\d+)?)\s*m[³3]'
+    match = re.search(pattern, all_text, re.IGNORECASE)
+    
+    if match:
+        used_str = match.group(1).replace(',', '')  # 移除千分位逗号
+        total_str = match.group(2).replace(',', '')  # 移除千分位逗号
+        
+        try:
+            used = float(used_str)
+            total = float(total_str)
+            return (used, total)
+        except ValueError:
+            pass
+    
+    # 如果第一个正则不匹配，尝试更宽松的模式（处理更多格式变化）
+    pattern2 = r'(\d+(?:[,\d]+)?(?:\.\d+)?)\s*/\s*(\d+(?:[,\d]+)?(?:\.\d+)?)\s*m[³3]'
+    match2 = re.search(pattern2, all_text, re.IGNORECASE)
+    
+    if match2:
+        used_str = match2.group(1).replace(',', '')  # 移除千分位逗号
+        total_str = match2.group(2).replace(',', '')  # 移除千分位逗号
+        
+        try:
+            used = float(used_str)
+            total = float(total_str)
+            return (used, total)
+        except ValueError:
+            pass
+    
+    # 如果正则匹配失败，尝试逐个文本查找包含 "/" 的文本
+    for text_idx, text in enumerate(rec_texts):
+        text_str = text.strip()
+        if '/' in text_str:
+            # 尝试提取数字/数字部分
+            parts = text_str.split('/')
+            if len(parts) == 2:
+                # 清理数字部分（移除单位、逗号等）
+                used_part = re.sub(r'[^\d.]', '', parts[0])
+                total_part = re.sub(r'[^\d.]', '', parts[1])
+                
+                # 查找后续文本中的单位（检查当前文本和后续1-2个文本）
+                check_texts = [text_str.lower()]
+                for i in range(text_idx + 1, min(text_idx + 3, len(rec_texts))):
+                    next_text = rec_texts[i].strip().lower()
+                    check_texts.append(next_text)
+                
+                # 检查是否包含单位（在当前文本或后续文本中）
+                has_unit = any('m' in t and ('3' in t or '³' in t) for t in check_texts)
+                
+                try:
+                    used = float(used_part) if used_part else 0.0
+                    total = float(total_part) if total_part else 0.0
+                    
+                    # 如果总数大于0，返回结果（无论是否找到单位，只要格式正确就返回）
+                    if total > 0:
+                        return (used, total)
+                except ValueError:
+                    continue
+    
+    return None
+
 

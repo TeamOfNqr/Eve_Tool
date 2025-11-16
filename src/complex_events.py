@@ -4,6 +4,7 @@ from paddleocr import PaddleOCR
 import numpy as np
 from typing import Union, List
 import os
+import threading
 
 # 加载环境变量
 from dotenv import load_dotenv, find_dotenv,dotenv_values, set_key
@@ -26,6 +27,9 @@ import pyautogui
 矿头挖掘距离 = int(eval(os.getenv('矿头挖掘距离')))
 调试模式 = int(eval(os.getenv('调试模式')))
 锁定状态监控区 = eval(os.getenv('锁定状态监控区'))
+
+# 自动挖冰矿监控的停止事件
+AUTO_ICE_MONITOR_STOP_EVENT = threading.Event()
 
 def Info_Show():
     """
@@ -551,12 +555,14 @@ def WarehouseSpace_Monitor():
 def AutoIceMining_Monitor_Forone():
     """
     ### 自动挖冰矿以及监控函数 ###
-    自动执行冰矿挖掘并监控矿仓状态
+    自动执行冰矿挖掘并监控矿仓状态（支持外部停止）
     返回：
-    True: 成功
+    True: 成功或正常停止
     False: 失败或需要人工介入
     ################
     """
+    # 每次调用前清除停止标志
+    AUTO_ICE_MONITOR_STOP_EVENT.clear()
     try:
         # 步骤1: 检查是否已经锁定到冰矿
         if IceOreLocked_State():
@@ -582,7 +588,7 @@ def AutoIceMining_Monitor_Forone():
         
         # 步骤4: 每5秒监控一次矿仓状态
         print("开始监控矿仓状态...")
-        while True:
+        while not AUTO_ICE_MONITOR_STOP_EVENT.is_set():
             if WarehouseSpace_Monitor():
                 # 矿仓已满，执行压缩操作
                 print("检测到矿仓已满，执行压缩操作...")
@@ -605,7 +611,15 @@ def AutoIceMining_Monitor_Forone():
             else:
                 # WarehouseSpace_Monitor() 内部已经打印了矿仓剩余空间
                 pass
-            time.sleep(5)
+
+            # 循环间隔，如果收到停止信号则提前结束
+            for _ in range(5):
+                if AUTO_ICE_MONITOR_STOP_EVENT.is_set():
+                    break
+                time.sleep(1)
+
+        print("收到停止指令，自动挖冰矿监控结束")
+        return True
             
     except KeyboardInterrupt:
         print("监控已中断")
@@ -615,3 +629,10 @@ def AutoIceMining_Monitor_Forone():
             print(f"调试: AutoIceMining_Monitor() 执行失败: {str(e)}")
         print("自动挖冰矿监控函数执行失败")
         return False
+
+def Stop_AutoIceMining_Monitor_Forone():
+    """
+    ### 停止自动挖冰矿监控 ###
+    通过设置停止事件请求 AutoIceMining_Monitor_Forone() 结束循环
+    """
+    AUTO_ICE_MONITOR_STOP_EVENT.set()

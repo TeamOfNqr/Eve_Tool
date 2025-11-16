@@ -2,7 +2,7 @@ from functools import partial
 import io
 import re
 from contextlib import redirect_stdout
-from PyQt6.QtCore import QCoreApplication
+from PyQt6.QtCore import QCoreApplication, QEvent
 import time
 
 from PyQt6.QtWidgets import (
@@ -12,6 +12,7 @@ from PyQt6.QtGui import QFont, QTextCursor, QColor, QMouseEvent
 from PyQt6.QtCore import Qt, QTimer, QPoint
 
 import os
+import threading
 from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 
@@ -77,6 +78,9 @@ class InfoPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setStyleSheet("background-color: #f8f9fa;")
+
+        # 自动冰矿监控运行状态
+        self.auto_ice_running = False
 
         # 主布局：水平布局，左侧70%控制台，右侧30%按钮区域
         main_layout = QHBoxLayout(self)
@@ -176,7 +180,7 @@ class InfoPage(QWidget):
         """
 
         # 创建4个按钮
-        self.button1 = QPushButton("按钮1")
+        self.button1 = QPushButton("开启单人自动冰矿采集")
         self.button1.setFixedHeight(36)
         self.button1.setStyleSheet(button_style)
         self.button1.clicked.connect(self.on_button1_clicked)
@@ -251,7 +255,70 @@ class InfoPage(QWidget):
 
     def on_button1_clicked(self):
         """按钮1点击处理：触发自动冰矿挖掘监控"""
-        self._update_console("自动冰矿挖掘监控", complex_events.AutoIceMining_Monitor_Forone())
+        # 如果当前未运行，则启动监控；否则发送停止指令
+        if not self.auto_ice_running:
+            # 启动
+            self.auto_ice_running = True
+            self.button1.setText("终止单人自动冰矿采集")
+
+            # 在控制台显示启动信息
+            try:
+                self.console_display.clear()
+                timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                self.console_display.append(f"[{timestamp}] 执行: 自动冰矿挖掘监控（已启动）")
+                self.console_display.append("-" * 50)
+                cursor = self.console_display.textCursor()
+                cursor.movePosition(QTextCursor.MoveOperation.End)
+                self.console_display.setTextCursor(cursor)
+            except Exception:
+                pass
+
+            # 在后台线程中执行耗时/长期运行的自动挖矿监控，避免阻塞 UI，
+            # 并通过 RealTimeTextStream 将 print 输出实时写入控制台
+            def _worker():
+                realtime_stream = RealTimeTextStream(self.console_display)
+                try:
+                    with redirect_stdout(realtime_stream):
+                        complex_events.AutoIceMining_Monitor_Forone()
+                    realtime_stream.flush()
+                except Exception as e:
+                    print(f"自动冰矿挖掘监控线程异常: {e}")
+                finally:
+                    # 监控结束后在主线程恢复按钮状态
+                    def _reset():
+                        self.auto_ice_running = False
+                        self.button1.setText("开启单人自动冰矿采集")
+                    QCoreApplication.postEvent(
+                        self,
+                        type("DummyEvent", (QEvent,), {})()  # 简单触发事件队列
+                    )
+                    QCoreApplication.instance().postEvent(
+                        self,
+                        type("DummyEvent", (QEvent,), {})()
+                    )
+                    # 为了简单起见，直接在后台线程更新标志，按钮文字依然在下次点击前可见
+                    self.auto_ice_running = False
+                    self.button1.setText("开启单人自动冰矿采集")
+
+            threading.Thread(target=_worker, daemon=True).start()
+        else:
+            # 发送停止指令
+            complex_events.Stop_AutoIceMining_Monitor_Forone()
+
+            # 在控制台提示停止
+            try:
+                timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                self.console_display.append(f"[{timestamp}] 已请求终止自动冰矿挖掘监控")
+                self.console_display.append("-" * 50)
+                cursor = self.console_display.textCursor()
+                cursor.movePosition(QTextCursor.MoveOperation.End)
+                self.console_display.setTextCursor(cursor)
+            except Exception:
+                pass
+
+            # 立即恢复按钮文字，状态标记将在后台线程结束时再次重置
+            self.auto_ice_running = False
+            self.button1.setText("开启单人自动冰矿采集")
 
     def on_button2_clicked(self):
         """按钮2点击处理：暂无功能"""
@@ -1170,4 +1237,3 @@ class AboutPage(QWidget):
         except Exception as e:
             self.about_text.setPlainText(f"加载 about.md 文件时出错: {str(e)}\n\n错误详情: {type(e).__name__}")
 
-complex_events.AutoIceMining_Monitor_Forone()

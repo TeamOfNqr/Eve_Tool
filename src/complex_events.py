@@ -530,3 +530,55 @@ def WarehouseSpace_Monitor():
             print(f"调试: WarehouseSpace_Monitor() 执行失败: {str(e)}")
         return False
 
+def AutoIceMining_Monitor_Forone    ():
+    """
+    ### 自动挖冰矿以及监控函数 ###
+    自动执行冰矿挖掘并监控矿仓状态
+    返回：
+    True: 成功
+    False: 失败或需要人工介入
+    ################
+    """
+    try:
+        # 步骤1: 检查是否已经锁定到冰矿
+        if IceOreLocked_State():
+            # 已锁定，进入步骤2
+            print("检测到已锁定冰矿，检查挖掘状态...")
+            # 步骤2: 检查采集器是否正在挖掘
+            if IceMining_Status():
+                # 正在挖掘，直接进入步骤4
+                print("采集器正在挖掘，开始监控矿仓状态...")
+            else:
+                # 未在挖掘，执行自动挖掘
+                print("采集器未在挖掘，执行自动挖掘...")
+                if not AutomaticIce_Mining():
+                    print("矿石锁定失败或不在挖掘范围，请人工调整")
+                    return False
+        else:
+            # 未锁定，直接跳到步骤3
+            print("未检测到已锁定冰矿，执行自动挖掘...")
+            # 步骤3: 执行自动挖掘
+            if not AutomaticIce_Mining():
+                print("矿石锁定失败或不在挖掘范围，请人工调整")
+                return False
+        
+        # 步骤4: 每5秒监控一次矿仓状态
+        print("开始监控矿仓状态...")
+        while True:
+            if WarehouseSpace_Monitor():
+                print("请人工介入")
+                return False
+            else:
+                # WarehouseSpace_Monitor() 内部已经打印了矿仓剩余空间
+                pass
+            time.sleep(5)
+            
+    except KeyboardInterrupt:
+        print("监控已中断")
+        return False
+    except Exception as e:
+        if 调试模式 == 1:
+            print(f"调试: AutoIceMining_Monitor() 执行失败: {str(e)}")
+        print("自动挖冰矿监控函数执行失败")
+        return False
+

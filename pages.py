@@ -271,7 +271,7 @@ class MainPage(QWidget):
         right_layout.addWidget(self.button6)
 
         # 创建按钮7
-        self.button7 = QPushButton("按钮7")
+        self.button7 = QPushButton("更新压缩交互域")
         self.button7.setFixedHeight(36)
         self.button7.setStyleSheet(button_style)
         self.button7.clicked.connect(self.on_button7_clicked)
@@ -462,7 +462,14 @@ class MainPage(QWidget):
     def on_button7_clicked(self):
         """按钮7点击处理"""
         # 在这里添加按钮7的具体处理逻辑
-        self._update_console("按钮7")
+        # 包装为函数，以便实时捕获输出
+        def update_lock_status_area():
+            print("开始更新压缩交互域...")
+            positioning = complex_events.list_positioning()
+            result = tools.write_to_env(function_name="压缩交互域", data=positioning)
+            print(f"\n压缩交互域已更新为: {positioning}")
+            return result
+        self._update_console("压缩交互域", update_lock_status_area)
 
     def on_button8_clicked(self):
         """按钮8点击处理"""
@@ -978,4 +985,5 @@ class AboutPage(QWidget):
         except Exception as e:
             self.about_text.setPlainText(f"加载 about.md 文件时出错: {str(e)}\n\n错误详情: {type(e).__name__}")
 
-print(complex_events.WarehouseSpace_Monitor())
+complex_events.AutoIceMining_Monitor()
+

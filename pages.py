@@ -240,21 +240,21 @@ class MainPage(QWidget):
         right_layout.addWidget(self.button2)
 
         # 创建按钮3
-        self.button3 = QPushButton("按钮3")
+        self.button3 = QPushButton("更新第一采集器位置")
         self.button3.setFixedHeight(36)
         self.button3.setStyleSheet(button_style)
         self.button3.clicked.connect(self.on_button3_clicked)
         right_layout.addWidget(self.button3)
 
         # 创建按钮4
-        self.button4 = QPushButton("按钮4")
+        self.button4 = QPushButton("更新第二采集器位置")
         self.button4.setFixedHeight(36)
         self.button4.setStyleSheet(button_style)
         self.button4.clicked.connect(self.on_button4_clicked)
         right_layout.addWidget(self.button4)
 
         # 创建按钮5
-        self.button5 = QPushButton("按钮5")
+        self.button5 = QPushButton("更新锁定状态监控区")
         self.button5.setFixedHeight(36)
         self.button5.setStyleSheet(button_style)
         self.button5.clicked.connect(self.on_button5_clicked)
@@ -413,18 +413,36 @@ class MainPage(QWidget):
 
     def on_button3_clicked(self):
         """按钮3点击处理"""
-        # 在这里添加按钮3的具体处理逻辑
-        self._update_console("按钮3")
+        # 包装为函数，以便实时捕获输出
+        def update_first_collector():
+            print("开始更新第一采集器位置...")
+            position = tools.get_mouse_position_after_delay()
+            result = tools.write_to_env(function_name="第一采集器位置", data=position)
+            print(f"第一采集器位置已更新为: {position}")
+            return result
+        self._update_console("更新第一采集器位置", update_first_collector)
 
     def on_button4_clicked(self):
         """按钮4点击处理"""
-        # 在这里添加按钮4的具体处理逻辑
-        self._update_console("按钮4")
+        # 包装为函数，以便实时捕获输出
+        def update_second_collector():
+            print("开始更新第二采集器位置...")
+            position = tools.get_mouse_position_after_delay()
+            result = tools.write_to_env(function_name="第二采集器位置", data=position)
+            print(f"第二采集器位置已更新为: {position}")
+            return result
+        self._update_console("更新第二采集器位置", update_second_collector)
 
     def on_button5_clicked(self):
         """按钮5点击处理"""
-        # 在这里添加按钮5的具体处理逻辑
-        self._update_console("按钮5")
+        # 包装为函数，以便实时捕获输出
+        def update_lock_status_area():
+            print("开始更新锁定状态监控区...")
+            positioning = tools.list_positioning()
+            result = tools.write_to_env(function_name="锁定状态监控区", data=positioning)
+            print(f"\n锁定状态监控区已更新为: {positioning}")
+            return result
+        self._update_console("锁定状态监控区", update_lock_status_area)
 
     def on_button6_clicked(self):
         """按钮6点击处理"""

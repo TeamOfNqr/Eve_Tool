@@ -247,7 +247,7 @@ def IceLock():
             
             # 锁定目标（左键，button_type=0）
             # 刷新OCR识别并查找"锁定目标"按钮（因为点击矿石后可能弹出菜单）
-            lock_position = tools.refresh_and_find_keyword_position("锁定目标", verbose=False)
+            lock_position = tools.find_keyword_position("锁定目标", refresh=True, verbose=False)
             if lock_position is None:
                 continue
             

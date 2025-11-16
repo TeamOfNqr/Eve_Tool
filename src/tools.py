@@ -7,6 +7,7 @@ import time
 import re
 import random
 import math
+import tkinter as tk
 
 # 加载环境变量
 from dotenv import load_dotenv, find_dotenv,dotenv_values, set_key
@@ -889,11 +890,13 @@ def random_click_in_inscribed_circle(
         print(f"随机点击函数执行失败: {str(e)}")
         return False
 
-def find_keyword_position(name: Optional[str] = None) -> Optional[List[int]]:
+def find_keyword_position(name: Optional[str] = None, refresh: bool = False, verbose: bool = True) -> Optional[List[int]]:
     """
     ### 从tmp目录下的JSON文件中查找关键字对应的位置信息 ###
     参数：
     name: 关键字（字符串），默认为None
+    refresh: 是否在查找前刷新OCR识别结果，默认为False
+    verbose: 是否打印OCR识别结果和错误信息，默认为True
     返回：
     List[int]: 位置信息（rec_boxes的值），格式为 [x_min, y_min, x_max, y_max]
     如果未找到关键字，返回None
@@ -903,6 +906,10 @@ def find_keyword_position(name: Optional[str] = None) -> Optional[List[int]]:
     ##############################
     """
     import json
+    
+    # 如果需要刷新OCR识别结果
+    if refresh:
+        main.Imageecognition_right_third(总览区域比例, verbose=verbose)
     
     # 参数验证
     if not name or not isinstance(name, str) or not name.strip():
@@ -952,7 +959,8 @@ def find_keyword_position(name: Optional[str] = None) -> Optional[List[int]]:
             
         except Exception as e:
             # 如果读取某个JSON文件失败，继续尝试下一个
-            print(f"读取JSON文件失败: {json_file}, 错误: {str(e)}")
+            if verbose:
+                print(f"读取JSON文件失败: {json_file}, 错误: {str(e)}")
             continue
     
     # 如果没有找到匹配的关键字，返回None
@@ -1010,77 +1018,82 @@ def parse_distance_to_km(distance_str: str) -> float:
     except (ValueError, AttributeError):
         return float('inf')
 
-def refresh_and_find_keyword_position(name: Optional[str] = None, verbose: bool = True) -> Optional[List[int]]:
+def area_screenshot(region = None):
     """
-    ### 从tmp目录下的JSON文件中查找关键字对应的位置信息 ###
-    参数：
-    name: 关键字（字符串），默认为None
-    verbose: 是否打印OCR识别结果，默认为True
-    返回：
-    List[int]: 位置信息（rec_boxes的值），格式为 [x_min, y_min, x_max, y_max]
-    如果未找到关键字，返回None
-    异常：
-    FileNotFoundError: 如果tmp目录下没有找到JSON文件
-    ValueError: 如果name参数为None或空字符串
-    ##############################
+    区域截图函数
+    接收参数格式为(x1, y1, width, height)
     """
-    import json
+    if region:
+        screenshot = pyautogui.screenshot(region=region)
+    else:
+        screenshot = pyautogui.screenshot()
     
-    main.Imageecognition_right_third(总览区域比例, verbose=verbose)
+    return screenshot
 
-    # 参数验证
-    if not name or not isinstance(name, str) or not name.strip():
-        raise ValueError("name参数必须是非空字符串")
+def list_positioning():
     
-    # 查找tmp目录下的JSON文件
-    tmp_path = Path("assets/tmp")
-    if not tmp_path.exists():
-        raise FileNotFoundError(f"tmp目录不存在: {tmp_path}")
-    
-    # 查找所有JSON文件，按修改时间排序（最新的在前）
-    json_files = sorted(
-        tmp_path.glob("*.json"),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True
-    )
-    
-    if not json_files:
-        raise FileNotFoundError(f"tmp目录下没有找到JSON文件: {tmp_path}")
-    
-    # 遍历所有JSON文件，找到第一个匹配的
-    for json_file in json_files:
-        try:
-            with open(json_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            # 获取识别文本和边界框
-            rec_texts = data.get('rec_texts', [])
-            rec_boxes = data.get('rec_boxes', [])
-            
-            if not rec_texts or not rec_boxes:
-                continue
-            
-            if len(rec_texts) != len(rec_boxes):
-                continue
-            
-            # 在rec_texts中搜索关键字（不区分大小写，支持部分匹配）
-            name_lower = name.lower().strip()
-            for i, text in enumerate(rec_texts):
-                if text and isinstance(text, str):
-                    text_lower = text.lower().strip()
-                    # 检查是否包含关键字（支持部分匹配）
-                    if name_lower in text_lower:
-                        # 返回对应的rec_boxes值
-                        if i < len(rec_boxes):
-                            return rec_boxes[i]
-            
-        except Exception as e:
-            # 如果读取某个JSON文件失败，继续尝试下一个
-            if verbose:
-                print(f"读取JSON文件失败: {json_file}, 错误: {str(e)}")
-            continue
-    
-    # 如果没有找到匹配的关键字，返回None
-    return None
+    """
+    通过延时记录鼠标位置定位信息窗口的区域参数
+
+    返回:
+        tuple: 包含 (x1, y1, width, height) 的元组，用于定位窗口区域
+    """
+    print("请将鼠标移动到列表左上角，3秒后记录...")
+    time.sleep(3)
+    x1, y1 = pyautogui.position()
+    print(f"左上角坐标: ({x1}, {y1})")
+
+    print("请将鼠标移动到列表右下角，3秒后记录...")
+    time.sleep(3)
+    x2, y2 = pyautogui.position()
+    print(f"右下角坐标: ({x2}, {y2})")
+
+    width = x2 - x1
+    height = y2 - y1
+
+    positioning = (x1, y1, width, height)
+
+    print(f"\n✅ 最终区域参数: region = ({x1}, {y1}, {width}, {height})")
+
+    highlight_region_on_screen(rect = (x1, y1, width, height))
+
+    return (positioning)
 
 
+def highlight_region_on_screen(rect, duration=2000):
+    """
+    在屏幕上创建一个透明窗口，并用红色边框高亮指定矩形区域。
+
+    :param rect: (x, y, width, height) 的 tuple，由 locate_template_on_screen 返回
+    :param duration: 高亮窗口显示的毫秒数（默认 2000ms = 2秒），设为 None 则需手动关闭
+    """
+    if rect is None:
+        return
+
+    x, y, w, h = rect
+
+    # 创建全屏透明窗口
+    root = tk.Tk()
+    root.overrideredirect(True)           # 无边框
+    root.attributes('-topmost', True)     # 置顶
+    root.attributes('-transparentcolor', 'white')  # 将白色设为透明色
+    root.config(bg='white')
+
+    # 设置窗口尺寸为整个屏幕
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    root.geometry(f"{screen_width}x{screen_height}+0+0")
+
+    # 创建 Canvas 用于绘图
+    canvas = tk.Canvas(root, width=screen_width, height=screen_height, bg='white', highlightthickness=0)
+    canvas.pack()
+
+    # 绘制红色边框矩形（注意：Canvas 坐标是 (x1, y1, x2, y2)）
+    canvas.create_rectangle(x, y, x + w, y + h, outline='red', width=3)
+
+    # 自动关闭窗口（可选）
+    if duration is not None:
+        root.after(duration, root.destroy)
+
+    # 启动窗口（非阻塞主逻辑需在主线程调用）
+    root.mainloop()

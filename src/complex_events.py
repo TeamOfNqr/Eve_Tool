@@ -427,3 +427,43 @@ def IceOreLocked_State():
         if 调试模式 == 1:
             print(f"调试: IceOreLocked_State() 执行失败: {str(e)}")
         return False
+
+def AutomaticIce_Mining():
+    """
+    ### 自动冰矿挖掘函数 ###
+    自动锁定冰矿矿石，并进行挖掘
+    返回：
+    True: 成功
+    False: 失败
+    ################
+    """
+    IceLock()
+    time.sleep(2)
+    print(IceOreLocked_State())
+    if IceOreLocked_State():
+        print("矿石已锁定")
+        第一采集器位置 = eval(os.getenv('第一采集器位置'))
+        第二采集器位置 = eval(os.getenv('第二采集器位置'))
+        time.sleep(0.2)
+        tools.random_click_in_circle(center = 第一采集器位置)
+        time.sleep(0.2)
+        tools.random_click_in_circle(center = 第二采集器位置)
+        return True
+    else:
+        print("矿石未锁定")
+        print("再次尝试锁定矿石")
+        IceLock()
+        if IceOreLocked_State():
+            print("矿石已锁定")
+            第一采集器位置 = eval(os.getenv('第一采集器位置'))
+            第二采集器位置 = eval(os.getenv('第二采集器位置'))
+            time.sleep(0.2)
+            tools.random_click_in_circle(center = 第一采集器位置)
+            time.sleep(0.2)
+            tools.random_click_in_circle(center = 第二采集器位置)
+            return True
+        else:
+            print("矿石锁定失败，可能不在采集器范围内")
+            print("请尝试人工介入")
+            return False
+

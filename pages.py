@@ -264,7 +264,7 @@ class MainPage(QWidget):
         right_layout.addWidget(self.button5)
 
         # 创建按钮6
-        self.button6 = QPushButton("按钮6")
+        self.button6 = QPushButton("更新矿仓剩余空间监控区")
         self.button6.setFixedHeight(36)
         self.button6.setStyleSheet(button_style)
         self.button6.clicked.connect(self.on_button6_clicked)
@@ -450,7 +450,14 @@ class MainPage(QWidget):
     def on_button6_clicked(self):
         """按钮6点击处理"""
         # 在这里添加按钮6的具体处理逻辑
-        self._update_console("按钮6")
+        # 包装为函数，以便实时捕获输出
+        def update_lock_status_area():
+            print("开始更新矿仓剩余空间监控区...")
+            positioning = complex_events.list_positioning()
+            result = tools.write_to_env(function_name="矿仓剩余空间监控区", data=positioning)
+            print(f"\n锁定状态监控区已更新为: {positioning}")
+            return result
+        self._update_console("矿仓剩余空间", update_lock_status_area)
 
     def on_button7_clicked(self):
         """按钮7点击处理"""
@@ -973,16 +980,3 @@ class AboutPage(QWidget):
 
 
 
-
-# complex_events.IceLock()
-# if not complex_events.IceMining_Status():
-#     第一采集器位置 = int(eval(os.getenv('第一采集器位置')))
-#     第二采集器位置 = int(eval(os.getenv('第二采集器位置')))
-#     tools.random_click_in_circle(center = 第一采集器位置)
-#     time.sleep(0.2)
-#     tools.random_click_in_circle(center = 第
-
-# screenshot_ = tools.area_screenshot(region = 锁定状态监控区)
-# main.Imageecognition(region = 锁定状态监控区)
-
-print(complex_events.IceOreLocked_State())

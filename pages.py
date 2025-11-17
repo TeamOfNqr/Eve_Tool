@@ -1237,4 +1237,4 @@ class AboutPage(QWidget):
         except Exception as e:
             self.about_text.setPlainText(f"加载 about.md 文件时出错: {str(e)}\n\n错误详情: {type(e).__name__}")
 
-complex_events.AutoIceMining_MultiWindow_Cycle()
+# complex_events.AutoIceMining_MultiWindow_Cycle()

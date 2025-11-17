@@ -1,12 +1,14 @@
 from functools import partial
+import importlib
 import io
 import re
 from contextlib import redirect_stdout
+from pathlib import Path
 from PyQt6.QtCore import QCoreApplication, QEvent
 import time
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton, QGridLayout, QScrollArea, QListWidget, QListWidgetItem, QMainWindow
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton, QGridLayout, QScrollArea, QListWidget, QListWidgetItem, QMainWindow, QCheckBox
 )
 from PyQt6.QtGui import QFont, QTextCursor, QColor, QMouseEvent
 from PyQt6.QtCore import Qt, QTimer, QPoint
@@ -774,6 +776,286 @@ class MainPage(QWidget):
         return '\n'.join(filtered_lines)
 
 
+class OreSelectionPage(QWidget):
+    """矿石多选页面"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet("background-color: #f8f9fa;")
+        self.ore_sources = self._load_ore_sources()
+        self._build_ui()
+
+    def _load_ore_sources(self):
+        sources = []
+        data_dir = Path(__file__).resolve().parent / "assets" / "data"
+        if not data_dir.exists():
+            return sources
+
+        for file_path in sorted(data_dir.glob("*_data.py")):
+            module_name = f"assets.data.{file_path.stem}"
+            try:
+                module = importlib.import_module(module_name)
+            except Exception as exc:
+                print(f"加载矿石数据模块 {module_name} 失败: {exc}")
+                continue
+
+            data_isk = getattr(module, "data_isk", [])
+            if len(data_isk) <= 1:
+                continue
+
+            rows_info = []
+            try:
+                lines = file_path.read_text(encoding='utf-8').splitlines()
+            except Exception as e:
+                print(f"读取文件 {file_path} 失败: {e}")
+                continue
+
+            # 精确查找 data_isk 起始行
+            data_isk_start = None
+            for i, line in enumerate(lines):
+                if re.search(r'data_isk\s*=\s*\[', line):
+                    data_isk_start = i
+                    break
+            if data_isk_start is None:
+                continue
+
+            # 重构解析逻辑
+            current_line = data_isk_start + 1  # 从下一行开始
+            data_index = 1  # 跳过表头(data_isk[0])
+            
+            while current_line < len(lines) and data_index < len(data_isk):
+                stripped_line = lines[current_line].strip()
+                
+                # 检查数据块结束
+                if stripped_line.startswith(']'):
+                    break
+                
+                # 跳过空行、注释和表头行
+                if (not stripped_line or 
+                    stripped_line.startswith('#') or 
+                    "'core-name'" in stripped_line or 
+                    '"core-name"' in stripped_line):
+                    current_line += 1
+                    continue
+                
+                # 处理有效数据行
+                row = data_isk[data_index]
+                if isinstance(row, list) and len(row) >= 6:
+                    # 验证行中是否包含布尔值
+                    if self._contains_bool_value(lines[current_line]):
+                        rows_info.append({
+                            "row": row,
+                            "file_path": file_path,
+                            "line_number": current_line,
+                            "original_line": lines[current_line]
+                        })
+                    else:
+                        print(f"警告: 文件 {file_path.name} 第 {current_line+1} 行不包含有效布尔值")
+                
+                data_index += 1
+                current_line += 1
+
+            if not rows_info:
+                continue
+
+            sources.append({
+                "title": getattr(module, "Name", file_path.stem.replace("_", " ")),
+                "rows_info": rows_info,
+            })
+
+        return sources
+    
+    def _contains_bool_value(self, line):
+        """检查行中是否包含独立的True/False值"""
+        return bool(re.search(r'\b(True|False)\b', line))
+
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        title = QLabel("矿石选择")
+        title.setFont(QFont("Microsoft YaHei", 14, QFont.Weight.Bold))
+        title.setStyleSheet("color: #333;")
+        layout.addWidget(title)
+
+        subtitle = QLabel("勾选需要的矿石，将直接修改文件中的布尔值字段。")
+        subtitle.setStyleSheet("color: #666; font-size: 10pt;")
+        layout.addWidget(subtitle)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setStyleSheet("border: none;")
+
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(12)
+
+        if self.ore_sources:
+            for source in self.ore_sources:
+                container_layout.addWidget(self._create_section(source))
+        else:
+            empty_label = QLabel("未找到任何矿石数据，请检查 assets/data 目录。")
+            empty_label.setStyleSheet("color: #999; font-style: italic;")
+            container_layout.addWidget(empty_label)
+
+        container_layout.addStretch()
+        scroll_area.setWidget(container)
+        layout.addWidget(scroll_area)
+
+    def _create_section(self, source):
+        section = QWidget()
+        section.setStyleSheet("""
+            QWidget {
+                background-color: #ffffff;
+                border: 1px solid #d0d0d0;
+                border-radius: 8px;
+            }
+        """)
+        section_layout = QVBoxLayout(section)
+        section_layout.setContentsMargins(12, 12, 12, 12)
+        section_layout.setSpacing(8)
+
+        header = QLabel(source["title"])
+        header.setFont(QFont("Microsoft YaHei", 12, QFont.Weight.Bold))
+        header.setStyleSheet("color: #333;")
+        section_layout.addWidget(header)
+
+        list_container = QWidget()
+        list_layout = QVBoxLayout(list_container)
+        list_layout.setContentsMargins(0, 0, 0, 0)
+        list_layout.setSpacing(6)
+
+        for info in source["rows_info"]:
+            row = info["row"]
+            if len(row) < 6:
+                continue
+            checkbox = OreCheckBox(row[0], info)
+            checkbox.setToolTip(f"isk/m³: {row[4]}")
+            checkbox.setChecked(bool(row[5]))
+            checkbox.stateChanged.connect(self._on_checkbox_toggled)
+            list_layout.addWidget(checkbox)
+
+        section_layout.addWidget(list_container)
+        return section
+
+    def _find_bool_position(self, line):
+        """动态定位行中最后一个独立的True/False位置"""
+        # 从后往前搜索，找到最后一个独立的True/False
+        matches = list(re.finditer(r'\b(True|False)\b', line))
+        if not matches:
+            return None
+        
+        # 取最后一个匹配（最靠近行尾的布尔值）
+        last_match = matches[-1]
+        return {
+            "start": last_match.start(),
+            "end": last_match.end(),
+            "value": last_match.group(1)
+        }
+
+    def _on_checkbox_toggled(self, state):
+        checkbox = self.sender()
+        if not isinstance(checkbox, OreCheckBox):
+            return
+            
+        info = checkbox.row_info
+        file_path = info["file_path"]
+        line_number = info["line_number"]
+        new_value = (state == Qt.CheckState.Checked)
+        new_value_str = "True" if new_value else "False"
+
+        try:
+            # 重新读取文件获取最新内容
+            lines = file_path.read_text(encoding='utf-8').splitlines()
+            if line_number >= len(lines):
+                raise IndexError(f"行号 {line_number} 超出文件范围 (共 {len(lines)} 行)")
+
+            original_line = lines[line_number]
+            
+            # 动态定位当前布尔值位置
+            bool_pos = self._find_bool_position(original_line)
+            if not bool_pos:
+                raise ValueError(f"无法在行中定位布尔值: {original_line}")
+            
+            # === 关键修复：移除错误的值变化检查 ===
+            # 直接执行替换，不检查值是否变化
+            # 因为用户明确进行了操作，应该信任用户意图
+            
+            # 精准替换
+            new_line = (
+                original_line[:bool_pos["start"]] + 
+                new_value_str + 
+                original_line[bool_pos["end"]:]
+            )
+            lines[line_number] = new_line
+            
+            # 写入文件
+            file_path.write_text('\n'.join(lines), encoding='utf-8')
+            
+            # 更新内存数据
+            info["row"][5] = new_value
+            
+            # 调试输出（可选）
+            # print(f"成功修改 {file_path.name} 第 {line_number+1} 行: {original_line} -> {new_line}")
+            
+        except Exception as e:
+            print(f"修改文件 {file_path.name} 第 {line_number+1} 行失败: {str(e)}")
+            # 尝试强力替换（最后手段）
+            try:
+                if "True" in original_line or "False" in original_line:
+                    # 替换最后一个出现的布尔值
+                    # 使用正则确保只替换独立的True/False
+                    pattern = r'\b(True|False)\b(?=[^\'"]*(?:\'[^\']*\'|"[^"]*")*[^\'"]*$)'
+                    new_line = re.sub(pattern, new_value_str, original_line, count=1)
+                    # 如果正则替换失败，尝试简单替换
+                    if new_line == original_line:
+                        # 从后往前替换最后一个布尔值
+                        parts = re.rsplit(original_line, 'True', 1)
+                        if len(parts) > 1:
+                            new_line = f"{parts[0]}{new_value_str}{parts[1]}"
+                        else:
+                            parts = re.rsplit(original_line, 'False', 1)
+                            if len(parts) > 1:
+                                new_line = f"{parts[0]}{new_value_str}{parts[1]}"
+                    
+                    lines[line_number] = new_line
+                    file_path.write_text('\n'.join(lines), encoding='utf-8')
+                    info["row"][5] = new_value
+                    print(f"强力替换成功: {file_path.name} 第 {line_number+1} 行")
+            except Exception as e2:
+                print(f"强力替换也失败: {str(e2)}")
+
+
+class OreCheckBox(QCheckBox):
+    def __init__(self, text, row_info, parent=None):
+        super().__init__(text, parent)
+        self.row_info = row_info
+        self.setStyleSheet("""
+            QCheckBox {
+                spacing: 10px;
+                font-size: 10pt;
+                color: #333;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+            }
+            QCheckBox::indicator:unchecked {
+                border: 2px solid #aaa;
+                background: #fff;
+                border-radius: 3px;
+            }
+            QCheckBox::indicator:checked {
+                background: #0078d4;
+                border: 2px solid #005a9e;
+                image: url(:/qt-project.org/styles/commonstyle/images/checkBoxChecked.png);
+                border-radius: 3px;
+            }
+        """)
+
+        
 class StandaloneControlBar(QMainWindow):
     """独立控制栏窗口 - 永久前置的用户名列表"""
     def __init__(self, parent=None):

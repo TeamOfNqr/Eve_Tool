@@ -21,7 +21,7 @@ from src import window_status
 # 修复 Windows 上 DPI 访问权限警告：强制使用 system DPI aware 模式
 os.environ.setdefault("QT_QPA_PLATFORM", "windows:dpiawareness=1")
 
-from pages import MainPage, InfoPage, WindowsControlPage, AboutPage
+from pages import MainPage, InfoPage, OreSelectionPage, WindowsControlPage, AboutPage
 
 class NavigationItem(QFrame):
     """极致紧凑型导航项"""
@@ -124,7 +124,7 @@ class MainWindow(QMainWindow):
         nav_content_layout.setSpacing(0)
 
         # 导航项
-        nav_items = ["信息栏","主控制台" , "窗口控制", "关于"]
+        nav_items = ["信息栏","主控制台","矿石选择","窗口控制", "关于"]
         self.nav_items = []
         for i, text in enumerate(nav_items):
             item = NavigationItem(text, i)
@@ -153,6 +153,7 @@ class MainWindow(QMainWindow):
         pages = [
             InfoPage(),
             MainPage(),
+            OreSelectionPage(),
             WindowsControlPage(),
             AboutPage(),
         ]
@@ -161,7 +162,7 @@ class MainWindow(QMainWindow):
             self.stacked_widget.addWidget(page)
         
         # 保存 WindowsControlPage 的引用，以便在关闭时关闭独立控制栏
-        self.windows_control_page = pages[2]
+        self.windows_control_page = pages[3]
 
         # 默认选中第一个
         self.nav_items[0].set_selected(True)

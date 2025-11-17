@@ -9,7 +9,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon
 
 from src import complex_events
-from src import ore_data
+from assets.data import IceOre_data
 from src import main
 from src import tools
 from src import window_status

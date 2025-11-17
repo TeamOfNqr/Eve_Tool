@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv, find_dotenv,dotenv_values, set_key
 load_dotenv(find_dotenv())
 
-from src import ore_data
+from assets.data import IceOre_data
 from src import main
 from src import tools
 from src import window_status

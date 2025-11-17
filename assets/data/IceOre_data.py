@@ -1,6 +1,8 @@
+# 冰矿
+
 ListName = ["矿石名称","矿石名称的截图路径","采集所需要的矿头晶体名称","截图位置","矿石采集价格isk/m^3","是否补齐"]
 
-IceMineral=[
+data = [
     ['core-name','core-path','core-crystal','crystal-path','isk','Ture&False'],
     ['电冰体','Electric_Ice.png','none','none','648','True'],
     ['聚合冰体','Aggregate_Ice.png','none','none','298','True'],
@@ -28,7 +30,7 @@ IceMineral=[
     ['高密度清冰锥','none','none','none','309','True']
 ]
 
-IceMineral_Isk=[
+data_isk=[
     ['core-name','core-path','core-crystal','crystal-path','isk','Ture&False'],
     ['冰晶矿','IceCrystal_Ore.png','none','none','1400','True'],
     ['高密度冰晶矿','none','none','none','1400','True'],

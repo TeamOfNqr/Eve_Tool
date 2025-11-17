@@ -12,7 +12,7 @@ import os
 load_dotenv(find_dotenv())
 import time
 
-from src import ore_data
+from assets.data import IceOre_data
 from src import main
 from src import tools
 from src import window_status
@@ -135,10 +135,10 @@ def IceLock():
             for i, row in enumerate(table_data[:10]):  # 只显示前10行
                 print(f"调试: 第{i+1}行: 距离={row[0] if len(row) > 0 else 'N/A'}, 名字={row[1] if len(row) > 1 else 'N/A'}, 类型={row[2] if len(row) > 2 else 'N/A'}")
         
-        # 创建矿石价格字典（从ore_data.IceMineral_Isk）
+        # 创建矿石价格字典（从 IceOre_data.data_isk）
         # 格式: {矿石名称: 价格}
         ore_price_dict = {}
-        for ore_item in ore_data.IceMineral_Isk:
+        for ore_item in IceOre_data.data_isk:
             if len(ore_item) >= 5 and ore_item[0] != 'core-name':  # 跳过表头
                 ore_name = ore_item[0]  # 矿石名称
                 try:
@@ -391,9 +391,9 @@ def IceOreLocked_State():
         if not rec_texts:
             return False
         
-        # 从 ore_data.IceMineral_Isk 中提取所有矿石名称（除了表头）
+        # 从 IceOre_data.data_isk 中提取所有矿石名称（除了表头）
         ore_names = []
-        for ore_item in ore_data.IceMineral_Isk:
+        for ore_item in IceOre_data.data_isk:
             if len(ore_item) > 0 and ore_item[0] != 'core-name':  # 跳过表头
                 ore_name = ore_item[0]  # 矿石名称
                 ore_names.append(ore_name)

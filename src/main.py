@@ -22,7 +22,7 @@ logging.getLogger('paddleocr').setLevel(logging.ERROR)
 logging.getLogger('paddlex').setLevel(logging.ERROR)
 
 
-from src import ore_data
+from assets.data import IceOre_data
 from src import tools
 from src import window_status
 # import tools

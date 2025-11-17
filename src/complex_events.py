@@ -630,9 +630,346 @@ def AutoIceMining_Monitor_Forone():
         print("自动挖冰矿监控函数执行失败")
         return False
 
+def AutoIceMining_Monitor_Forone_WithThrow():
+    """
+    ### 自动挖冰矿以及监控函数（带抛出功能） ###
+    自动执行冰矿挖掘并监控矿仓状态（支持外部停止）
+    与 AutoIceMining_Monitor_Forone() 的区别：
+    当出现矿石仓满后，执行完压缩操作之后额外执行一步 tools.Throw_Ore_To_Fleet_Hangar()
+    返回：
+    True: 成功或正常停止
+    False: 失败或需要人工介入
+    ################
+    """
+    # 每次调用前清除停止标志
+    AUTO_ICE_MONITOR_STOP_EVENT.clear()
+    try:
+        # 步骤1: 检查是否已经锁定到冰矿
+        if IceOreLocked_State():
+            # 已锁定，进入步骤2
+            print("检测到已锁定冰矿，检查挖掘状态...")
+            # 步骤2: 检查采集器是否正在挖掘
+            if IceMining_Status():
+                # 正在挖掘，直接进入步骤4
+                print("采集器正在挖掘，开始监控矿仓状态...")
+            else:
+                # 未在挖掘，执行自动挖掘
+                print("采集器未在挖掘，执行自动挖掘...")
+                if not tools.CollectorClick():
+                    print("矿石锁定失败或不在挖掘范围，请人工调整")
+                    return False
+        else:
+            # 未锁定，直接跳到步骤3
+            print("未检测到已锁定冰矿，执行自动挖掘...")
+            # 步骤3: 执行自动挖掘
+            if not AutomaticIce_Mining():
+                print("矿石锁定失败或不在挖掘范围，请人工调整")
+                return False
+        
+        # 步骤4: 每5秒监控一次矿仓状态
+        print("开始监控矿仓状态...")
+        while not AUTO_ICE_MONITOR_STOP_EVENT.is_set():
+            if WarehouseSpace_Monitor():
+                # 矿仓已满，执行压缩操作
+                print("检测到矿仓已满，执行压缩操作...")
+                tools.Compress_Interaction()  # 无论压缩是否成功都继续
+                
+                # 等待压缩操作完成，给系统一些时间更新状态
+                time.sleep(2)
+                
+                # 立即执行抛出矿石至舰队机库（无论压缩是否成功）
+                print("执行抛出矿石至舰队机库...")
+                if not tools.Throw_Ore_To_Fleet_Hangar():
+                    print("抛出矿石至舰队机库失败，请人工介入")
+                    return False
+                print("抛出矿石至舰队机库成功")
+                
+                # 等待抛出操作完成，给系统一些时间更新状态
+                time.sleep(1)
+                
+                # 检测矿仓空间，如果依旧为满则提示
+                print("抛出后重新检测矿仓空间...")
+                if WarehouseSpace_Monitor():
+                    print("矿石压缩抛出失败，请尝试人工介入")
+                    return False
+                else:
+                    print("矿仓空间已释放，继续监控...")
+            else:
+                # WarehouseSpace_Monitor() 内部已经打印了矿仓剩余空间
+                pass
+
+            # 循环间隔，如果收到停止信号则提前结束
+            for _ in range(5):
+                if AUTO_ICE_MONITOR_STOP_EVENT.is_set():
+                    break
+                time.sleep(1)
+
+        print("收到停止指令，自动挖冰矿监控结束")
+        return True
+            
+    except KeyboardInterrupt:
+        print("监控已中断")
+        return False
+    except Exception as e:
+        if 调试模式 == 1:
+            print(f"调试: AutoIceMining_Monitor_Forone_WithThrow() 执行失败: {str(e)}")
+        print("自动挖冰矿监控函数执行失败")
+        return False
+
 def Stop_AutoIceMining_Monitor_Forone():
     """
     ### 停止自动挖冰矿监控 ###
     通过设置停止事件请求 AutoIceMining_Monitor_Forone() 结束循环
     """
     AUTO_ICE_MONITOR_STOP_EVENT.set()
+
+def AutoIceMining_MultiWindow_Cycle():
+    """
+    ### 多窗口自动挖冰矿循环函数 ###
+    自动在多个EVE窗口之间切换，对每个窗口执行挖冰矿监控操作
+    
+    流程：
+    1. 初始化排除账号列表
+    2. 对当前EVE页面进行AutoIceMining_Monitor_Forone_WithThrow()操作
+       - 如果检测到矿仓未满则进行下一步
+       - 如果检测到矿仓为满，则执行压缩和抛出并再次确认矿仓空间已释放，矿仓未满后进行下一步
+    3. 自动切换目标游戏窗口（排除排除账号列表中的用户名，单次循环中不重复）
+    4. 切换之后等待1s执行第二步
+    
+    返回：
+    True: 成功
+    False: 失败
+    ################
+    """
+    try:
+        # 1. 初始化排除账号列表（保留原始值，支持字符串和整数）
+        排除账号_env = os.getenv('排除账号')
+        排除账号_原始 = []  # 保留原始值（字符串）
+        排除账号_整数 = []  # 保留整数值
+        if 排除账号_env:
+            try:
+                排除账号 = eval(排除账号_env)
+                # 确保排除账号是列表格式
+                if not isinstance(排除账号, (list, tuple)):
+                    排除账号 = [排除账号] if 排除账号 else []
+                # 分别保存字符串和整数值
+                for acc in 排除账号:
+                    # 保存原始值（转换为字符串）
+                    排除账号_原始.append(str(acc))
+                    # 尝试转换为整数并保存
+                    try:
+                        排除账号_整数.append(int(acc))
+                    except (ValueError, TypeError):
+                        # 如果无法转换为整数，只保留字符串值
+                        pass
+            except Exception as e:
+                print(f"警告: 解析排除账号环境变量时出错: {e}，使用空列表")
+        
+        if 调试模式 == 1:
+            print(f"调试: 排除账号原始列表 = {排除账号_原始}")
+            print(f"调试: 排除账号整数列表 = {排除账号_整数}")
+        
+        # 获取所有EVE窗口用户名
+        all_usernames = window_status.get_eve_usernames()
+        if not all_usernames:
+            print("未找到任何EVE窗口")
+            return False
+        
+        # 过滤掉排除账号列表中的用户名
+        # 支持字符串匹配和整数匹配
+        available_usernames = []
+        for username in all_usernames:
+            should_exclude = False
+            
+            # 方法1: 直接字符串匹配
+            if username in 排除账号_原始:
+                should_exclude = True
+            else:
+                # 方法2: 尝试将用户名转换为整数进行匹配
+                try:
+                    username_int = int(username)
+                    if username_int in 排除账号_整数:
+                        should_exclude = True
+                except ValueError:
+                    # 如果用户名不是数字，只检查字符串匹配（已在上面检查）
+                    pass
+            
+            # 如果不在排除列表中，则添加到可用列表
+            if not should_exclude:
+                available_usernames.append(username)
+        
+        if not available_usernames:
+            print("所有窗口都在排除账号列表中，没有可用的窗口")
+            return False
+        
+        if 调试模式 == 1:
+            print(f"调试: 可用用户名列表 = {available_usernames}")
+        
+        # 持续循环处理所有窗口（处理完所有窗口后重新开始）
+        print("开始多窗口循环处理，按 Ctrl+C 可中断...")
+        cycle_count = 0
+        
+        while True:
+            cycle_count += 1
+            print(f"\n{'='*50}")
+            print(f"开始第 {cycle_count} 轮循环")
+            print(f"{'='*50}")
+            
+            # 初始化：将所有窗口最小化到任务栏
+            print("初始化：将所有EVE窗口最小化到任务栏...")
+            window_status.minimize_all_eve_windows()
+            time.sleep(0.5)  # 等待最小化完成
+            
+            # 每轮循环开始时重新获取窗口列表，确保使用最新的窗口信息
+            all_usernames = window_status.get_eve_usernames()
+            if not all_usernames:
+                print("未找到任何EVE窗口，等待 5 秒后重试...")
+                time.sleep(5)
+                continue
+            
+            # 重新过滤掉排除账号列表中的用户名
+            available_usernames = []
+            for username in all_usernames:
+                should_exclude = False
+                
+                # 方法1: 直接字符串匹配
+                if username in 排除账号_原始:
+                    should_exclude = True
+                else:
+                    # 方法2: 尝试将用户名转换为整数进行匹配
+                    try:
+                        username_int = int(username)
+                        if username_int in 排除账号_整数:
+                            should_exclude = True
+                    except ValueError:
+                        # 如果用户名不是数字，只检查字符串匹配（已在上面检查）
+                        pass
+                
+                # 如果不在排除列表中，则添加到可用列表
+                if not should_exclude:
+                    available_usernames.append(username)
+            
+            if not available_usernames:
+                print("所有窗口都在排除账号列表中，等待 5 秒后重试...")
+                time.sleep(5)
+                continue
+            
+            if 调试模式 == 1:
+                print(f"调试: 当前可用用户名列表 = {available_usernames}")
+            
+            # 记录已切换的窗口，确保单次循环中不重复
+            已切换窗口 = []
+            
+            # 循环处理每个窗口
+            while len(已切换窗口) < len(available_usernames):
+                # 选择下一个未处理的窗口
+                for username in available_usernames:
+                    if username not in 已切换窗口:
+                        current_username = username
+                        break
+                else:
+                    # 所有窗口都已处理，跳出内层循环，重新开始新一轮
+                    break
+                
+                print(f"\n切换到窗口: {current_username}")
+                
+                # 切换到目标窗口
+                hwnd = window_status.get_eve_hwnd_by_username(current_username)
+                if hwnd is None:
+                    print(f"无法找到窗口 {current_username} 的句柄，跳过")
+                    已切换窗口.append(current_username)
+                    continue
+                
+                if not window_status.bring_window_to_front(hwnd):
+                    print(f"无法前置窗口 {current_username}，跳过")
+                    已切换窗口.append(current_username)
+                    continue
+                
+                # 等待窗口切换完成
+                time.sleep(1)
+                
+                # 2. 检查矿仓状态并执行相应操作
+                print(f"检查窗口 {current_username} 的矿仓状态...")
+                
+                # 先检查矿仓是否满
+                if WarehouseSpace_Monitor():
+                    # 矿仓已满，执行压缩和抛出
+                    print("检测到矿仓已满，执行压缩操作...")
+                    if not tools.Compress_Interaction():
+                        print("压缩操作失败，跳过此窗口")
+                        已切换窗口.append(current_username)
+                        continue
+                    
+                    # 等待压缩操作完成
+                    time.sleep(2)
+                    
+                    # 执行抛出矿石至舰队机库
+                    print("执行抛出矿石至舰队机库...")
+                    if not tools.Throw_Ore_To_Fleet_Hangar():
+                        print("抛出操作失败，跳过此窗口")
+                        已切换窗口.append(current_username)
+                        continue
+                    
+                    # 等待抛出操作完成
+                    time.sleep(1)
+                    
+                    # 再次确认矿仓空间已释放
+                    print("确认矿仓空间是否已释放...")
+                    if WarehouseSpace_Monitor():
+                        print("矿仓空间仍未释放，跳过此窗口")
+                        已切换窗口.append(current_username)
+                        continue
+                    else:
+                        print("矿仓空间已释放，继续执行监控...")
+                else:
+                    print("矿仓未满，直接执行监控...")
+                
+                # 执行AutoIceMining_Monitor_Forone_WithThrow()操作
+                # 注意：这个函数内部有循环监控，但我们可以通过停止事件来控制
+                print(f"开始对窗口 {current_username} 执行自动挖冰矿监控...")
+                
+                # 由于AutoIceMining_Monitor_Forone_WithThrow()是一个长时间运行的监控函数，
+                # 我们需要在切换到下一个窗口前停止它
+                # 但根据需求，这里应该是执行一次检查和处理，然后切换到下一个窗口
+                # 所以我们可以只执行一次检查，而不是运行完整的监控循环
+                
+                # 执行一次自动挖冰矿操作（如果未锁定则锁定并开始挖掘）
+                if IceOreLocked_State():
+                    # 已锁定，检查挖掘状态
+                    if IceMining_Status():
+                        print("采集器正在挖掘")
+                    else:
+                        print("采集器未在挖掘，执行自动挖掘...")
+                        if not tools.CollectorClick():
+                            print("自动挖掘失败，跳过此窗口")
+                            已切换窗口.append(current_username)
+                            continue
+                else:
+                    # 未锁定，执行自动挖掘
+                    print("未检测到已锁定冰矿，执行自动挖掘...")
+                    if not AutomaticIce_Mining():
+                        print("自动挖掘失败，跳过此窗口")
+                        已切换窗口.append(current_username)
+                        continue
+                
+                # 标记当前窗口已处理
+                已切换窗口.append(current_username)
+                print(f"窗口 {current_username} 处理完成")
+                
+                # 等待一段时间再切换到下一个窗口
+                time.sleep(1)
+            
+            # 所有窗口处理完成，等待一段时间后重新开始下一轮循环
+            print(f"\n第 {cycle_count} 轮循环完成，所有窗口已处理")
+            print("等待 5 秒后开始下一轮循环...")
+            time.sleep(5)
+        
+    except KeyboardInterrupt:
+        print("多窗口循环已中断")
+        return False
+    except Exception as e:
+        if 调试模式 == 1:
+            print(f"调试: AutoIceMining_MultiWindow_Cycle() 执行失败: {str(e)}")
+        print(f"多窗口自动挖冰矿循环函数执行失败: {str(e)}")
+        return False
+

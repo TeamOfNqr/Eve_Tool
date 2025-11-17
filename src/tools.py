@@ -1411,3 +1411,174 @@ def Compress_Interaction(radius=2):
             print(f"调试: Compress_Interaction() 执行失败: {str(e)}")
         print("压缩交互函数执行失败")
         return False
+
+def Throw_Ore_To_Fleet_Hangar(radius=2):
+    """
+    ### 抛出矿石至舰队机库函数 ###
+    执行抛出矿石至舰队机库的操作流程：
+    1. 初始化环境变量
+    2. 在压缩交互区内寻找"加成船"变量的值（三个值匹配其中一个即可）
+    3. 重新执行Compress_Interaction()的步骤1-3（按下、移动、松开）
+    4. 等待0.2s后鼠标执行左键按下
+    5. 在按下的状态鼠标位置移动到"加成船"变量的值匹配到的位置，然后等待0.2s后松开
+    6. 再等待0.2s后，鼠标移动到屏幕中央
+    
+    参数：
+        radius (int): 随机点的像素半径范围，默认为2
+    返回：
+        True: 成功
+        False: 失败
+    ################
+    """
+    try:
+        # 1. 初始化环境变量
+        加成船 = eval(os.getenv('加成船'))
+        压缩交互区 = eval(os.getenv('压缩交互区'))
+        压缩交互左上定位点 = eval(os.getenv('压缩交互左上定位点'))
+        压缩交互右下定位点 = eval(os.getenv('压缩交互右下定位点'))
+        
+        # 验证定位点格式
+        if not isinstance(压缩交互左上定位点, (list, tuple)) or len(压缩交互左上定位点) != 2:
+            print("错误: 压缩交互左上定位点格式不正确")
+            return False
+        if not isinstance(压缩交互右下定位点, (list, tuple)) or len(压缩交互右下定位点) != 2:
+            print("错误: 压缩交互右下定位点格式不正确")
+            return False
+        if not isinstance(压缩交互区, (list, tuple)) or len(压缩交互区) != 2:
+            print("错误: 压缩交互区格式不正确")
+            return False
+        
+        # 处理加成船变量：如果是列表，直接使用；如果是单个值，转换为列表
+        if isinstance(加成船, (list, tuple)):
+            加成船列表 = list(加成船)
+        else:
+            # 如果加成船是单个值，转换为列表
+            加成船列表 = [加成船]
+        
+        # 2. 在压缩交互区内寻找"加成船"变量的值（三个值匹配其中一个即可）
+        # 将屏幕分割比例转换为左下区域
+        screen_width, screen_height = pyautogui.size()
+        x_ratio, y_ratio = 压缩交互区
+        
+        # 计算左下区域
+        # 左下区域：从(0, y_ratio * screen_height)到(x_ratio * screen_width, screen_height)
+        left = 0
+        top = int(screen_height * y_ratio)
+        width = int(screen_width * x_ratio)
+        height = screen_height - top
+        
+        region = (left, top, width, height)
+        
+        if 调试模式 == 1:
+            print(f"调试: 左下区域 region = {region}")
+            print(f"调试: 屏幕尺寸 = ({screen_width}, {screen_height})")
+            print(f"调试: 压缩交互区比例 = ({x_ratio}, {y_ratio})")
+            print(f"调试: 加成船列表 = {加成船列表}")
+        
+        # 执行OCR识别
+        main.Imageecognition(region=region, verbose=False)
+        
+        # 查找"加成船"关键词的位置（尝试匹配三个值中的任意一个）
+        加成船位置 = None
+        for keyword in 加成船列表:
+            # 将关键词转换为字符串进行匹配
+            keyword_str = str(keyword).strip()
+            if keyword_str:
+                加成船位置 = find_keyword_position(keyword_str, refresh=False, verbose=False)
+                if 加成船位置 is not None:
+                    if 调试模式 == 1:
+                        print(f"调试: 找到'加成船'关键词 '{keyword_str}' 的位置")
+                    break
+        
+        if 加成船位置 is None:
+            print("未找到'加成船'关键词（尝试了所有值）")
+            return False
+        
+        # 计算"加成船"关键词的中心位置
+        x_min, y_min, x_max, y_max = 加成船位置
+        
+        if 调试模式 == 1:
+            print(f"调试: 找到'加成船'关键词位置（相对坐标）= [{x_min}, {y_min}, {x_max}, {y_max}]")
+            print(f"调试: 识别区域偏移量 offset = ({left}, {top})")
+        
+        # 补偿识别区域的偏移量：将识别区域内的相对坐标转换为屏幕绝对坐标
+        x_min = x_min + left
+        y_min = y_min + top
+        x_max = x_max + left
+        y_max = y_max + top
+        
+        if 调试模式 == 1:
+            print(f"调试: 转换后的坐标（绝对坐标）= [{x_min}, {y_min}, {x_max}, {y_max}]")
+        
+        center_x = (x_min + x_max) // 2
+        center_y = (y_min + y_max) // 2
+        
+        # 验证坐标是否在合理范围内
+        if center_x < 0 or center_x > screen_width or center_y < 0 or center_y > screen_height:
+            print(f"警告: 计算的中心位置 ({center_x}, {center_y}) 超出屏幕范围!")
+            print(f"屏幕范围: ({screen_width}, {screen_height})")
+            if 调试模式 == 1:
+                print(f"调试: 这可能表示坐标转换有问题")
+            return False
+        
+        if 调试模式 == 1:
+            print(f"调试: 计算的中心位置 = ({center_x}, {center_y})")
+        
+        # 3. 重新执行Compress_Interaction()的步骤1-3
+        # 步骤1: 在压缩交互右下定位点的radius像素半径范围内随机一点鼠标按下
+        x_right, y_right = 压缩交互右下定位点
+        # 在圆形区域内生成均匀分布的随机点（使用极坐标）
+        r1 = radius * math.sqrt(random.random())
+        theta1 = random.uniform(0, 2 * math.pi)
+        offset_x1 = int(r1 * math.cos(theta1))
+        offset_y1 = int(r1 * math.sin(theta1))
+        start_x = x_right + offset_x1
+        start_y = y_right + offset_y1
+        
+        # 移动鼠标到起始位置并按下
+        pyautogui.moveTo(start_x, start_y)
+        time.sleep(0.1)
+        pyautogui.mouseDown(button='left')
+        
+        # 步骤2: 等待0.1秒后，在按下状态的同时鼠标移动到压缩交互左上定位点的radius像素半径范围内随机一点
+        time.sleep(0.1)
+        x_left, y_left = 压缩交互左上定位点
+        # 在圆形区域内生成均匀分布的随机点（使用极坐标）
+        r2 = radius * math.sqrt(random.random())
+        theta2 = random.uniform(0, 2 * math.pi)
+        offset_x2 = int(r2 * math.cos(theta2))
+        offset_y2 = int(r2 * math.sin(theta2))
+        end_x = x_left + offset_x2
+        end_y = y_left + offset_y2
+        
+        # 在按下状态的同时移动鼠标
+        pyautogui.moveTo(end_x, end_y, duration=0.1)
+        
+        # 步骤3: 等待0.1秒后松开
+        time.sleep(0.1)
+        pyautogui.mouseUp(button='left')
+        
+        # 4. 再等待0.2s后鼠标执行左键按下
+        time.sleep(0.2)
+        pyautogui.mouseDown(button='left')
+        
+        # 5. 在按下的状态鼠标位置移动到"加成船"变量的值匹配到的位置，然后等待0.2s后松开
+        pyautogui.moveTo(center_x, center_y, duration=0.1)
+        time.sleep(0.2)
+        pyautogui.mouseUp(button='left')
+        
+        # 6. 再等待0.2s后，鼠标移动到屏幕中央
+        time.sleep(0.2)
+        screen_center_x = screen_width // 2
+        screen_center_y = screen_height // 2
+        pyautogui.moveTo(screen_center_x, screen_center_y)
+        
+        print("抛出矿石至舰队机库操作完成")
+        return True
+        
+    except Exception as e:
+        if 调试模式 == 1:
+            print(f"调试: Throw_Ore_To_Fleet_Hangar() 执行失败: {str(e)}")
+        print("抛出矿石至舰队机库函数执行失败")
+        return False
+

@@ -1,7 +1,8 @@
 ## 简介
-    这是一个EVE脚本程序，完成对EVE的游戏的交互操作
+  这是一个EVE帮助程序，使用纯视觉分析完成对游戏内容或是关键节点的理解
 ## 使用
-
+  1. 区域初始化
+  2. 
 ## 部署环境
 - 部分环境链接
   - [paddlepaddle-gpu 快速部署](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/develop/install/pip/windows-pip.html)

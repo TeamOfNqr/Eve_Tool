@@ -12,7 +12,7 @@ data = [
 
 data_isk = [
     ['core-name','core-path','core-crystal','crystal-path','isk','Ture&False'],
-    ['玻璃化基腹断岩','none','基腹断岩小行星采集晶体A型','none','62869',False],  
-    ['基腹断岩岩浆','none','基腹断岩小行星采集晶体A型','none','59985',False],
-    ['基腹断岩','none','基腹断岩小行星采集晶体A型','none','57164',False]
+    ['玻璃化基腹断岩','none','基腹断岩小行星采集晶体A型','none','62869',True],  
+    ['基腹断岩岩浆','none','基腹断岩小行星采集晶体A型','none','59985',True],
+    ['基腹断岩','none','基腹断岩小行星采集晶体A型','none','57164',True]
 ]

@@ -963,9 +963,12 @@ class OreSelectionPage(QWidget):
         info = checkbox.row_info
         file_path = info["file_path"]
         line_number = info["line_number"]
-        new_value = (state == Qt.CheckState.Checked)
+        # PyQt6中stateChanged信号传递的state: 0=Unchecked, 2=Checked
+        # 可以直接比较枚举值或整数
+        new_value = (state == Qt.CheckState.Checked or state == 2)
         new_value_str = "True" if new_value else "False"
 
+        original_line = None
         try:
             # 重新读取文件获取最新内容
             lines = file_path.read_text(encoding='utf-8').splitlines()
@@ -979,7 +982,6 @@ class OreSelectionPage(QWidget):
             if not bool_pos:
                 raise ValueError(f"无法在行中定位布尔值: {original_line}")
             
-            # === 关键修复：移除错误的值变化检查 ===
             # 直接执行替换，不检查值是否变化
             # 因为用户明确进行了操作，应该信任用户意图
             
@@ -989,43 +991,57 @@ class OreSelectionPage(QWidget):
                 new_value_str + 
                 original_line[bool_pos["end"]:]
             )
+            
+            # 验证替换是否成功（新行应该包含目标布尔值）
+            if new_value_str not in new_line:
+                raise ValueError(f"替换后未找到目标布尔值 {new_value_str}")
+            
             lines[line_number] = new_line
             
             # 写入文件
             file_path.write_text('\n'.join(lines), encoding='utf-8')
             
+            # 验证文件写入是否成功
+            verify_lines = file_path.read_text(encoding='utf-8').splitlines()
+            if line_number < len(verify_lines):
+                verify_line = verify_lines[line_number]
+                if new_value_str not in verify_line:
+                    raise ValueError(f"文件写入验证失败: 第 {line_number+1} 行未包含 {new_value_str}")
+            
             # 更新内存数据
             info["row"][5] = new_value
             
-            # 调试输出（可选）
-            # print(f"成功修改 {file_path.name} 第 {line_number+1} 行: {original_line} -> {new_line}")
+            # 调试输出
+            print(f"✓ 成功修改 {file_path.name} 第 {line_number+1} 行: {bool_pos['value']} -> {new_value_str}")
             
         except Exception as e:
-            print(f"修改文件 {file_path.name} 第 {line_number+1} 行失败: {str(e)}")
+            print(f"✗ 修改文件 {file_path.name} 第 {line_number+1} 行失败: {str(e)}")
             # 尝试强力替换（最后手段）
-            try:
-                if "True" in original_line or "False" in original_line:
-                    # 替换最后一个出现的布尔值
-                    # 使用正则确保只替换独立的True/False
-                    pattern = r'\b(True|False)\b(?=[^\'"]*(?:\'[^\']*\'|"[^"]*")*[^\'"]*$)'
-                    new_line = re.sub(pattern, new_value_str, original_line, count=1)
-                    # 如果正则替换失败，尝试简单替换
-                    if new_line == original_line:
-                        # 从后往前替换最后一个布尔值
-                        parts = re.rsplit(original_line, 'True', 1)
-                        if len(parts) > 1:
-                            new_line = f"{parts[0]}{new_value_str}{parts[1]}"
+            if original_line is not None:
+                try:
+                    lines = file_path.read_text(encoding='utf-8').splitlines()
+                    if line_number < len(lines):
+                        current_line = lines[line_number]
+                        # 使用正则表达式替换最后一个独立的True/False
+                        # 匹配独立的True或False（不在引号内）
+                        pattern = r'\b(True|False)\b'
+                        matches = list(re.finditer(pattern, current_line))
+                        if matches:
+                            # 替换最后一个匹配
+                            last_match = matches[-1]
+                            new_line = (
+                                current_line[:last_match.start()] + 
+                                new_value_str + 
+                                current_line[last_match.end():]
+                            )
+                            lines[line_number] = new_line
+                            file_path.write_text('\n'.join(lines), encoding='utf-8')
+                            info["row"][5] = new_value
+                            print(f"✓ 强力替换成功: {file_path.name} 第 {line_number+1} 行: {last_match.group(1)} -> {new_value_str}")
                         else:
-                            parts = re.rsplit(original_line, 'False', 1)
-                            if len(parts) > 1:
-                                new_line = f"{parts[0]}{new_value_str}{parts[1]}"
-                    
-                    lines[line_number] = new_line
-                    file_path.write_text('\n'.join(lines), encoding='utf-8')
-                    info["row"][5] = new_value
-                    print(f"强力替换成功: {file_path.name} 第 {line_number+1} 行")
-            except Exception as e2:
-                print(f"强力替换也失败: {str(e2)}")
+                            print(f"✗ 强力替换失败: 未找到可替换的布尔值")
+                except Exception as e2:
+                    print(f"✗ 强力替换也失败: {str(e2)}")
 
 
 class OreCheckBox(QCheckBox):
@@ -1055,7 +1071,7 @@ class OreCheckBox(QCheckBox):
             }
         """)
 
-        
+
 class StandaloneControlBar(QMainWindow):
     """独立控制栏窗口 - 永久前置的用户名列表"""
     def __init__(self, parent=None):

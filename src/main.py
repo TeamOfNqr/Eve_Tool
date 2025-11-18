@@ -25,9 +25,6 @@ logging.getLogger('paddlex').setLevel(logging.ERROR)
 from assets.data import IceOre_data
 from src import tools
 from src import window_status
-# import tools
-# import ore_data
-# import window_status
 
 # 从环境变量获取总览区域
 overview_area = eval(os.getenv('总览区域'))

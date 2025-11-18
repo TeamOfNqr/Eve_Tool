@@ -13,10 +13,6 @@ from assets.data import IceOre_data
 from src import main
 from src import tools
 from src import window_status
-# import main
-# import tools
-# import ore_data
-# import window_status
 
 # 修复 Windows 上 DPI 访问权限警告：强制使用 system DPI aware 模式
 os.environ.setdefault("QT_QPA_PLATFORM", "windows:dpiawareness=1")

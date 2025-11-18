@@ -23,11 +23,6 @@ from src import main
 from src import tools
 from src import window_status
 from src import complex_events
-# import main
-# import tools
-# import ore_data
-# import window_status
-# import complex_events
 
 # 从环境变量获取总览区域
 调试模式 = int(eval(os.getenv('调试模式')))

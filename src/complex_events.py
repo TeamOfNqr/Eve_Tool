@@ -16,10 +16,6 @@ from assets.data import IceOre_data
 from src import main
 from src import tools
 from src import window_status
-# import main
-# import tools
-# import ore_data
-# import window_status
 import pyautogui
 
 # 从环境变量获取总览区域

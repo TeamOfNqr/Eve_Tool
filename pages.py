@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton, QGridLayout, QScrollArea, QListWidget, QListWidgetItem, QMainWindow, QCheckBox
 )
 from PyQt6.QtGui import QFont, QTextCursor, QColor, QMouseEvent
-from PyQt6.QtCore import Qt, QTimer, QPoint
+from PyQt6.QtCore import Qt, QTimer, QPoint, pyqtSignal
 
 import os
 import threading
@@ -870,12 +870,12 @@ class OreSelectionPage(QWidget):
         layout.setSpacing(12)
 
         title = QLabel("矿石选择")
-        title.setFont(QFont("Microsoft YaHei", 14, QFont.Weight.Bold))
-        title.setStyleSheet("color: #333;")
+        title.setFont(QFont("Microsoft YaHei", 16, QFont.Weight.Bold))
+        title.setStyleSheet("color: #1976d2; padding: 4px 0;")
         layout.addWidget(title)
 
-        subtitle = QLabel("勾选需要的矿石，将直接修改文件中的布尔值字段。")
-        subtitle.setStyleSheet("color: #666; font-size: 10pt;")
+        subtitle = QLabel("勾选需要的矿石，将直接修改文件中的布尔值字段。点击分类标题可折叠/展开列表。")
+        subtitle.setStyleSheet("color: #666; font-size: 10pt; padding: 2px 0 8px 0;")
         layout.addWidget(subtitle)
 
         scroll_area = QScrollArea()
@@ -885,7 +885,7 @@ class OreSelectionPage(QWidget):
         container = QWidget()
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(0, 0, 0, 0)
-        container_layout.setSpacing(12)
+        container_layout.setSpacing(16)
 
         if self.ore_sources:
             for source in self.ore_sources:
@@ -904,24 +904,32 @@ class OreSelectionPage(QWidget):
         section.setStyleSheet("""
             QWidget {
                 background-color: #ffffff;
-                border: 1px solid #d0d0d0;
-                border-radius: 8px;
+                border: 1px solid #e0e0e0;
+                border-radius: 10px;
             }
         """)
         section_layout = QVBoxLayout(section)
-        section_layout.setContentsMargins(12, 12, 12, 12)
-        section_layout.setSpacing(8)
+        section_layout.setContentsMargins(0, 0, 0, 0)
+        section_layout.setSpacing(0)
 
-        header = QLabel(source["title"])
-        header.setFont(QFont("Microsoft YaHei", 12, QFont.Weight.Bold))
-        header.setStyleSheet("color: #333;")
+        # 创建可点击的标题
+        header = ClickableHeaderLabel(source["title"])
         section_layout.addWidget(header)
 
         list_container = QWidget()
+        list_container.setStyleSheet("""
+            QWidget {
+                background-color: #fafafa;
+                border-bottom-left-radius: 10px;
+                border-bottom-right-radius: 10px;
+            }
+        """)
         list_layout = QVBoxLayout(list_container)
-        list_layout.setContentsMargins(0, 0, 0, 0)
-        list_layout.setSpacing(6)
+        list_layout.setContentsMargins(16, 12, 16, 12)
+        list_layout.setSpacing(8)
 
+        # 保存该section下的所有checkbox
+        checkboxes = []
         for info in source["rows_info"]:
             row = info["row"]
             if len(row) < 6:
@@ -931,6 +939,16 @@ class OreSelectionPage(QWidget):
             checkbox.setChecked(bool(row[5]))
             checkbox.stateChanged.connect(self._on_checkbox_toggled)
             list_layout.addWidget(checkbox)
+            checkboxes.append(checkbox)
+
+        # 连接header点击事件，实现折叠/展开功能
+        def on_header_clicked():
+            # 切换展开/收起状态
+            header.toggle()
+            # 根据展开状态显示/隐藏列表容器
+            list_container.setVisible(header.is_expanded)
+        
+        header.clicked.connect(on_header_clicked)
 
         section_layout.addWidget(list_container)
         return section
@@ -1039,30 +1057,108 @@ class OreSelectionPage(QWidget):
                     print(f"✗ 强力替换也失败: {str(e2)}")
 
 
+class ClickableHeaderLabel(QWidget):
+    """可点击的标题标签，支持展开/收起状态"""
+    clicked = pyqtSignal()
+    
+    def __init__(self, text, parent=None):
+        super().__init__(parent)
+        self.is_expanded = True  # 默认展开状态
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedHeight(36)
+        
+        # 创建水平布局
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(16, 0, 16, 0)
+        layout.setSpacing(12)
+        
+        # 箭头标签 - 使用更美观的图标
+        self.arrow_label = QLabel("▼")
+        self.arrow_label.setFont(QFont("Microsoft YaHei", 11))
+        self.arrow_label.setStyleSheet("""
+            color: #2196f3;
+            font-weight: bold;
+        """)
+        self.arrow_label.setFixedWidth(20)
+        self.arrow_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.arrow_label)
+        
+        # 文本标签
+        self.text_label = QLabel(text)
+        self.text_label.setFont(QFont("Microsoft YaHei", 13, QFont.Weight.Bold))
+        self.text_label.setStyleSheet("color: #1976d2;")
+        layout.addWidget(self.text_label)
+        
+        layout.addStretch()
+        
+        # 设置整体样式
+        self._update_style()
+    
+    def _update_style(self):
+        """更新样式"""
+        # 移除背景色和边框，只保留悬停效果
+        self.setStyleSheet("""
+            ClickableHeaderLabel {
+                background-color: transparent;
+                border: none;
+            }
+            ClickableHeaderLabel:hover {
+                background-color: transparent;
+            }
+        """)
+    
+    def set_expanded(self, expanded):
+        """设置展开/收起状态"""
+        self.is_expanded = expanded
+        # 使用更美观的箭头符号
+        self.arrow_label.setText("▼" if expanded else "▶")
+        self._update_style()
+    
+    def toggle(self):
+        """切换展开/收起状态"""
+        self.set_expanded(not self.is_expanded)
+    
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+
 class OreCheckBox(QCheckBox):
     def __init__(self, text, row_info, parent=None):
         super().__init__(text, parent)
         self.row_info = row_info
         self.setStyleSheet("""
             QCheckBox {
-                spacing: 10px;
+                spacing: 12px;
                 font-size: 10pt;
-                color: #333;
+                color: #424242;
+                padding: 4px 0px;
+            }
+            QCheckBox:hover {
+                color: #1976d2;
             }
             QCheckBox::indicator {
-                width: 18px;
-                height: 18px;
+                width: 20px;
+                height: 20px;
+                border-radius: 4px;
             }
             QCheckBox::indicator:unchecked {
-                border: 2px solid #aaa;
-                background: #fff;
-                border-radius: 3px;
+                border: 2px solid #bdbdbd;
+                background: #ffffff;
+            }
+            QCheckBox::indicator:unchecked:hover {
+                border: 2px solid #2196f3;
+                background: #e3f2fd;
             }
             QCheckBox::indicator:checked {
-                background: #0078d4;
-                border: 2px solid #005a9e;
+                background: #2196f3;
+                border: 2px solid #1976d2;
                 image: url(:/qt-project.org/styles/commonstyle/images/checkBoxChecked.png);
-                border-radius: 3px;
+            }
+            QCheckBox::indicator:checked:hover {
+                background: #1976d2;
+                border: 2px solid #1565c0;
             }
         """)
 

@@ -968,4 +968,3 @@ def AutoIceMining_MultiWindow_Cycle():
             print(f"调试: AutoIceMining_MultiWindow_Cycle() 执行失败: {str(e)}")
         print(f"多窗口自动挖冰矿循环函数执行失败: {str(e)}")
         return False
-

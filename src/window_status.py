@@ -264,5 +264,3 @@ def minimize_all_eve_windows():
     except Exception as e:
         print(f"最小化所有EVE窗口时出错: {e}")
         return 0
-
-

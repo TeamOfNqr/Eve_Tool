@@ -181,6 +181,7 @@ class MainWindow(QMainWindow):
             self.windows_control_page.close_standalone_bar()
         event.accept()
 
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     

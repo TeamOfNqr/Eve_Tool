@@ -629,7 +629,7 @@ class MainPage(QWidget):
         right_layout.addWidget(self.button13)
 
         # 创建按钮14
-        self.button14 = QPushButton("按钮14")
+        self.button14 = QPushButton("初始化监看")
         self.button14.setFixedHeight(36)
         self.button14.setStyleSheet(button_style)
         self.button14.clicked.connect(self.on_button14_clicked)
@@ -816,9 +816,13 @@ class MainPage(QWidget):
         self._update_console("按钮13")
 
     def on_button14_clicked(self):
-        """按钮14点击处理"""
-        # 在这里添加按钮14的具体处理逻辑
-        self._update_console("按钮14")
+        # 包装为函数，以便实时捕获输出
+        def update_first_collector():
+            print("==初始化监看===")
+            result = complex_events.InitializeMonitoring()
+            print("==初始化监看===")
+            return result
+        self._update_console("初始化监看", update_first_collector)
 
     def _get_current_time(self):
         """获取当前时间字符串"""
@@ -1694,4 +1698,4 @@ class AboutPage(QWidget):
             self.about_text.setPlainText(f"加载 about.md 文件时出错: {str(e)}\n\n错误详情: {type(e).__name__}")
 
 
-complex_events.Execute_All_Functions()
+# complex_events.InitializeMonitoring()

@@ -1582,3 +1582,459 @@ def Throw_Ore_To_Fleet_Hangar(radius=2):
         print("抛出矿石至舰队机库函数执行失败")
         return False
 
+def draw_region_by_ratio(
+    env_key_name: str,
+    position: int,
+    duration: int = 5000,
+    border_width: int = 3,
+    border_color: str = "red"
+):
+    """
+    ### 根据.env中的比例值绘制屏幕区域的透明框线 ###
+    参数：
+    env_key_name: .env文件中的键名（例如："压缩交互区"）
+    position: 位置编号（1=左上角，2=右上角，3=左下角，4=右下角）
+    duration: 显示持续时间（毫秒），0表示永久显示直到关闭窗口或按ESC键
+    border_width: 边框宽度（像素），默认为3
+    border_color: 边框颜色，默认为"red"
+    返回：
+    None
+    异常：
+    ValueError: 如果env_key_name为空、position不在1-4范围内、或.env中找不到对应的键
+    ##############################
+    """
+    # 参数验证
+    if not env_key_name or not isinstance(env_key_name, str):
+        raise ValueError("env_key_name 必须是非空字符串")
+    
+    if position not in [1, 2, 3, 4]:
+        raise ValueError("position 必须是 1（左上角）、2（右上角）、3（左下角）或 4（右下角）")
+    
+    # 从.env文件中读取值
+    env_value = os.getenv(env_key_name)
+    if env_value is None:
+        raise ValueError(f"在.env文件中未找到键 '{env_key_name}'")
+    
+    # 解析比例值（格式：[x比例, y比例]）
+    try:
+        ratio_list = eval(env_value)
+        if not isinstance(ratio_list, (list, tuple)) or len(ratio_list) != 2:
+            raise ValueError(f"'{env_key_name}' 的值格式不正确，应为 [x比例, y比例]")
+        x_ratio, y_ratio = float(ratio_list[0]), float(ratio_list[1])
+        
+        # 验证比例值范围（应该在0到1之间）
+        if not (0 <= x_ratio <= 1 and 0 <= y_ratio <= 1):
+            raise ValueError(f"比例值应在0到1之间，当前值: [{x_ratio}, {y_ratio}]")
+    except (ValueError, SyntaxError, TypeError) as e:
+        raise ValueError(f"无法解析 '{env_key_name}' 的值 '{env_value}'，错误: {str(e)}")
+    
+    # 获取屏幕尺寸
+    screen_width, screen_height = pyautogui.size()
+    
+    # 根据位置计算矩形区域坐标
+    if position == 1:
+        # 左上角：从 (0, 0) 到 (x_ratio * screen_width, y_ratio * screen_height)
+        x_min = 0
+        y_min = 0
+        x_max = int(screen_width * x_ratio)
+        y_max = int(screen_height * y_ratio)
+    elif position == 2:
+        # 右上角：从 (x_ratio * screen_width, 0) 到 (screen_width, y_ratio * screen_height)
+        x_min = int(screen_width * x_ratio)
+        y_min = 0
+        x_max = screen_width
+        y_max = int(screen_height * y_ratio)
+    elif position == 3:
+        # 左下角：从 (0, y_ratio * screen_height) 到 (x_ratio * screen_width, screen_height)
+        x_min = 0
+        y_min = int(screen_height * y_ratio)
+        x_max = int(screen_width * x_ratio)
+        y_max = screen_height
+    else:  # position == 4
+        # 右下角：从 (x_ratio * screen_width, y_ratio * screen_height) 到 (screen_width, screen_height)
+        x_min = int(screen_width * x_ratio)
+        y_min = int(screen_height * y_ratio)
+        x_max = screen_width
+        y_max = screen_height
+    
+    # 计算窗口尺寸和位置
+    width = x_max - x_min
+    height = y_max - y_min
+    
+    if width <= 0 or height <= 0:
+        raise ValueError(f"计算出的矩形区域无效: width={width}, height={height}")
+    
+    # 创建透明窗口
+    root = tk.Tk()
+    root.overrideredirect(True)  # 移除窗口边框
+    root.attributes('-topmost', True)  # 置顶
+    
+    # 设置窗口位置和大小
+    window_width = width + border_width * 2
+    window_height = height + border_width * 2
+    root.geometry(f"{window_width}x{window_height}+{x_min - border_width}+{y_min - border_width}")
+    
+    # 创建画布，使用特殊颜色作为透明色
+    canvas = tk.Canvas(
+        root, 
+        width=window_width, 
+        height=window_height,
+        highlightthickness=0,
+        bg='#000001'  # 使用特殊颜色作为透明色
+    )
+    canvas.pack()
+    
+    # 设置窗口透明（Windows特有）
+    try:
+        root.attributes('-transparentcolor', '#000001')
+    except:
+        # 如果不支持透明色，使用半透明
+        root.attributes('-alpha', 0.5)
+        canvas.config(bg='black')
+    
+    # 绘制边框矩形（只绘制边框，不填充）
+    canvas.create_rectangle(
+        border_width,
+        border_width,
+        width + border_width,
+        height + border_width,
+        outline=border_color,
+        width=border_width,
+        fill=''  # 不填充
+    )
+    
+    # 添加键盘事件：按ESC键关闭窗口
+    def close_window(event=None):
+        root.destroy()
+    
+    root.bind('<Escape>', close_window)
+    root.focus_set()  # 设置焦点以接收键盘事件
+    
+    # 如果设置了持续时间，自动关闭窗口
+    if duration > 0:
+        root.after(duration, root.destroy)
+    
+    # 运行窗口
+    root.mainloop()
+
+def draw_region_by_coordinates(
+    env_key_name: str,
+    duration: int = 5000,
+    border_width: int = 3,
+    border_color: str = "red"
+):
+    """
+    ### 根据.env中的坐标值绘制屏幕区域的透明框线 ###
+    参数：
+    env_key_name: .env文件中的键名（例如："总览区域"）
+    duration: 显示持续时间（毫秒），0表示永久显示直到关闭窗口或按ESC键
+    border_width: 边框宽度（像素），默认为3
+    border_color: 边框颜色，默认为"red"
+    返回：
+    None
+    异常：
+    ValueError: 如果env_key_name为空、坐标格式不正确、或.env中找不到对应的键
+    注意：
+    坐标格式应为 [x_min, y_min, x_max, y_max]，例如：[1911, 25, 2557, 672]
+    ##############################
+    """
+    # 参数验证
+    if not env_key_name or not isinstance(env_key_name, str):
+        raise ValueError("env_key_name 必须是非空字符串")
+    
+    # 从.env文件中读取值
+    env_value = os.getenv(env_key_name)
+    if env_value is None:
+        raise ValueError(f"在.env文件中未找到键 '{env_key_name}'")
+    
+    # 解析坐标值（格式：[x_min, y_min, x_max, y_max]）
+    try:
+        coord_list = eval(env_value)
+        if not isinstance(coord_list, (list, tuple)) or len(coord_list) != 4:
+            raise ValueError(f"'{env_key_name}' 的值格式不正确，应为 [x_min, y_min, x_max, y_max]")
+        x_min, y_min, x_max, y_max = int(coord_list[0]), int(coord_list[1]), int(coord_list[2]), int(coord_list[3])
+        
+        # 验证坐标值的有效性
+        if x_min >= x_max or y_min >= y_max:
+            raise ValueError(f"坐标值无效: x_min({x_min}) >= x_max({x_max}) 或 y_min({y_min}) >= y_max({y_max})")
+    except (ValueError, SyntaxError, TypeError) as e:
+        raise ValueError(f"无法解析 '{env_key_name}' 的值 '{env_value}'，错误: {str(e)}")
+    
+    # 计算窗口尺寸和位置
+    width = x_max - x_min
+    height = y_max - y_min
+    
+    if width <= 0 or height <= 0:
+        raise ValueError(f"计算出的矩形区域无效: width={width}, height={height}")
+    
+    # 创建透明窗口
+    root = tk.Tk()
+    root.overrideredirect(True)  # 移除窗口边框
+    root.attributes('-topmost', True)  # 置顶
+    
+    # 设置窗口位置和大小
+    window_width = width + border_width * 2
+    window_height = height + border_width * 2
+    root.geometry(f"{window_width}x{window_height}+{x_min - border_width}+{y_min - border_width}")
+    
+    # 创建画布，使用特殊颜色作为透明色
+    canvas = tk.Canvas(
+        root, 
+        width=window_width, 
+        height=window_height,
+        highlightthickness=0,
+        bg='#000001'  # 使用特殊颜色作为透明色
+    )
+    canvas.pack()
+    
+    # 设置窗口透明（Windows特有）
+    try:
+        root.attributes('-transparentcolor', '#000001')
+    except:
+        # 如果不支持透明色，使用半透明
+        root.attributes('-alpha', 0.5)
+        canvas.config(bg='black')
+    
+    # 绘制边框矩形（只绘制边框，不填充）
+    canvas.create_rectangle(
+        border_width,
+        border_width,
+        width + border_width,
+        height + border_width,
+        outline=border_color,
+        width=border_width,
+        fill=''  # 不填充
+    )
+    
+    # 添加键盘事件：按ESC键关闭窗口
+    def close_window(event=None):
+        root.destroy()
+    
+    root.bind('<Escape>', close_window)
+    root.focus_set()  # 设置焦点以接收键盘事件
+    
+    # 如果设置了持续时间，自动关闭窗口
+    if duration > 0:
+        root.after(duration, root.destroy)
+    
+    # 运行窗口
+    root.mainloop()
+
+def draw_region_by_size(
+    env_key_name: str,
+    duration: int = 5000,
+    border_width: int = 3,
+    border_color: str = "red"
+):
+    """
+    ### 根据.env中的位置和尺寸值绘制屏幕区域的透明框线 ###
+    参数：
+    env_key_name: .env文件中的键名（例如："锁定状态监控区"）
+    duration: 显示持续时间（毫秒），0表示永久显示直到关闭窗口或按ESC键
+    border_width: 边框宽度（像素），默认为3
+    border_color: 边框颜色，默认为"red"
+    返回：
+    None
+    异常：
+    ValueError: 如果env_key_name为空、坐标格式不正确、或.env中找不到对应的键
+    注意：
+    坐标格式应为 [x1, y1, width, height]，例如：[2132, 36, 731, 376]
+    ##############################
+    """
+    # 参数验证
+    if not env_key_name or not isinstance(env_key_name, str):
+        raise ValueError("env_key_name 必须是非空字符串")
+    
+    # 从.env文件中读取值
+    env_value = os.getenv(env_key_name)
+    if env_value is None:
+        raise ValueError(f"在.env文件中未找到键 '{env_key_name}'")
+    
+    # 解析坐标值（格式：[x1, y1, width, height]）
+    try:
+        coord_list = eval(env_value)
+        if not isinstance(coord_list, (list, tuple)) or len(coord_list) != 4:
+            raise ValueError(f"'{env_key_name}' 的值格式不正确，应为 [x1, y1, width, height]")
+        x1, y1, width, height = int(coord_list[0]), int(coord_list[1]), int(coord_list[2]), int(coord_list[3])
+        
+        # 验证尺寸值的有效性
+        if width <= 0 or height <= 0:
+            raise ValueError(f"尺寸值无效: width({width}) <= 0 或 height({height}) <= 0")
+        
+        # 将 [x1, y1, width, height] 转换为 [x_min, y_min, x_max, y_max]
+        x_min = x1
+        y_min = y1
+        x_max = x1 + width
+        y_max = y1 + height
+    except (ValueError, SyntaxError, TypeError) as e:
+        raise ValueError(f"无法解析 '{env_key_name}' 的值 '{env_value}'，错误: {str(e)}")
+    
+    # 计算窗口尺寸和位置
+    rect_width = x_max - x_min
+    rect_height = y_max - y_min
+    
+    if rect_width <= 0 or rect_height <= 0:
+        raise ValueError(f"计算出的矩形区域无效: width={rect_width}, height={rect_height}")
+    
+    # 创建透明窗口
+    root = tk.Tk()
+    root.overrideredirect(True)  # 移除窗口边框
+    root.attributes('-topmost', True)  # 置顶
+    
+    # 设置窗口位置和大小
+    window_width = rect_width + border_width * 2
+    window_height = rect_height + border_width * 2
+    root.geometry(f"{window_width}x{window_height}+{x_min - border_width}+{y_min - border_width}")
+    
+    # 创建画布，使用特殊颜色作为透明色
+    canvas = tk.Canvas(
+        root, 
+        width=window_width, 
+        height=window_height,
+        highlightthickness=0,
+        bg='#000001'  # 使用特殊颜色作为透明色
+    )
+    canvas.pack()
+    
+    # 设置窗口透明（Windows特有）
+    try:
+        root.attributes('-transparentcolor', '#000001')
+    except:
+        # 如果不支持透明色，使用半透明
+        root.attributes('-alpha', 0.5)
+        canvas.config(bg='black')
+    
+    # 绘制边框矩形（只绘制边框，不填充）
+    canvas.create_rectangle(
+        border_width,
+        border_width,
+        rect_width + border_width,
+        rect_height + border_width,
+        outline=border_color,
+        width=border_width,
+        fill=''  # 不填充
+    )
+    
+    # 添加键盘事件：按ESC键关闭窗口
+    def close_window(event=None):
+        root.destroy()
+    
+    root.bind('<Escape>', close_window)
+    root.focus_set()  # 设置焦点以接收键盘事件
+    
+    # 如果设置了持续时间，自动关闭窗口
+    if duration > 0:
+        root.after(duration, root.destroy)
+    
+    # 运行窗口
+    root.mainloop()
+
+def draw_circle_by_point(
+    env_key_name: str,
+    radius: int = 2,
+    duration: int = 5000,
+    border_width: int = 3,
+    border_color: str = "red"
+):
+    """
+    ### 根据.env中的点坐标值绘制屏幕区域的透明圆形框线 ###
+    参数：
+    env_key_name: .env文件中的键名（例如："压缩交互左上定位点"）
+    radius: 圆的半径（像素），默认为2
+    duration: 显示持续时间（毫秒），0表示永久显示直到关闭窗口或按ESC键
+    border_width: 边框宽度（像素），默认为3
+    border_color: 边框颜色，默认为"red"
+    返回：
+    None
+    异常：
+    ValueError: 如果env_key_name为空、坐标格式不正确、或.env中找不到对应的键
+    注意：
+    坐标格式应为 [x, y]，例如：[254, 1573]
+    ##############################
+    """
+    # 参数验证
+    if not env_key_name or not isinstance(env_key_name, str):
+        raise ValueError("env_key_name 必须是非空字符串")
+    
+    if radius <= 0:
+        raise ValueError("radius 必须大于0")
+    
+    # 从.env文件中读取值
+    env_value = os.getenv(env_key_name)
+    if env_value is None:
+        raise ValueError(f"在.env文件中未找到键 '{env_key_name}'")
+    
+    # 解析坐标值（格式：[x, y]）
+    try:
+        coord_list = eval(env_value)
+        if not isinstance(coord_list, (list, tuple)) or len(coord_list) != 2:
+            raise ValueError(f"'{env_key_name}' 的值格式不正确，应为 [x, y]")
+        x, y = int(coord_list[0]), int(coord_list[1])
+    except (ValueError, SyntaxError, TypeError) as e:
+        raise ValueError(f"无法解析 '{env_key_name}' 的值 '{env_value}'，错误: {str(e)}")
+    
+    # 计算圆的边界框
+    x_min = x - radius - border_width
+    y_min = y - radius - border_width
+    x_max = x + radius + border_width
+    y_max = y + radius + border_width
+    
+    # 计算窗口尺寸和位置
+    window_width = x_max - x_min
+    window_height = y_max - y_min
+    
+    # 创建透明窗口
+    root = tk.Tk()
+    root.overrideredirect(True)  # 移除窗口边框
+    root.attributes('-topmost', True)  # 置顶
+    
+    # 设置窗口位置和大小
+    root.geometry(f"{window_width}x{window_height}+{x_min}+{y_min}")
+    
+    # 创建画布，使用特殊颜色作为透明色
+    canvas = tk.Canvas(
+        root, 
+        width=window_width, 
+        height=window_height,
+        highlightthickness=0,
+        bg='#000001'  # 使用特殊颜色作为透明色
+    )
+    canvas.pack()
+    
+    # 设置窗口透明（Windows特有）
+    try:
+        root.attributes('-transparentcolor', '#000001')
+    except:
+        # 如果不支持透明色，使用半透明
+        root.attributes('-alpha', 0.5)
+        canvas.config(bg='black')
+    
+    # 计算画布上的圆心坐标（相对于窗口）
+    canvas_center_x = radius + border_width
+    canvas_center_y = radius + border_width
+    
+    # 绘制圆形边框（只绘制边框，不填充）
+    canvas.create_oval(
+        canvas_center_x - radius,
+        canvas_center_y - radius,
+        canvas_center_x + radius,
+        canvas_center_y + radius,
+        outline=border_color,
+        width=border_width,
+        fill=''  # 不填充
+    )
+    
+    # 添加键盘事件：按ESC键关闭窗口
+    def close_window(event=None):
+        root.destroy()
+    
+    root.bind('<Escape>', close_window)
+    root.focus_set()  # 设置焦点以接收键盘事件
+    
+    # 如果设置了持续时间，自动关闭窗口
+    if duration > 0:
+        root.after(duration, root.destroy)
+    
+    # 运行窗口
+    root.mainloop()
+

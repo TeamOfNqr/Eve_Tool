@@ -133,14 +133,15 @@ def IceLock():
                 print(f"调试: 第{i+1}行: 距离={row[0] if len(row) > 0 else 'N/A'}, 名字={row[1] if len(row) > 1 else 'N/A'}, 类型={row[2] if len(row) > 2 else 'N/A'}")
         
         # 创建矿石价格字典（从 IceOre_data.data_isk）
-        # 格式: {矿石名称: 价格}
+        # 格式: {矿石名称: {'price': 价格, 'enabled': Ture&False值}}
         ore_price_dict = {}
         for ore_item in IceOre_data.data_isk:
-            if len(ore_item) >= 5 and ore_item[0] != 'core-name':  # 跳过表头
+            if len(ore_item) >= 6 and ore_item[0] != 'core-name':  # 跳过表头，需要至少6列（包含Ture&False列）
                 ore_name = ore_item[0]  # 矿石名称
                 try:
                     ore_price = int(ore_item[4])  # 矿石价格（isk/m^3）
-                    ore_price_dict[ore_name] = ore_price
+                    ore_enabled = ore_item[5]  # Ture&False列（布尔值）
+                    ore_price_dict[ore_name] = {'price': ore_price, 'enabled': ore_enabled}
                 except (ValueError, IndexError):
                     continue
         
@@ -170,11 +171,13 @@ def IceLock():
             # 检查矿石类型是否在价格字典中，支持多种匹配方式
             matched_ore_name = None
             matched_price = None
+            matched_enabled = None
             
             # 1. 首先尝试完全匹配
             if ore_type in ore_price_dict:
                 matched_ore_name = ore_type
-                matched_price = ore_price_dict[ore_type]
+                matched_price = ore_price_dict[ore_type]['price']
+                matched_enabled = ore_price_dict[ore_type]['enabled']
                 if 调试模式 == 1 :
                     print(f"调试: 完全匹配到矿石: {ore_type} -> {matched_ore_name}")
             else:
@@ -185,7 +188,8 @@ def IceLock():
                     extracted_name = match.group(1)
                     if extracted_name in ore_price_dict:
                         matched_ore_name = extracted_name
-                        matched_price = ore_price_dict[extracted_name]
+                        matched_price = ore_price_dict[extracted_name]['price']
+                        matched_enabled = ore_price_dict[extracted_name]['enabled']
                         if 调试模式 == 1 :
                             print(f"调试: 括号匹配到矿石: {ore_type} -> {matched_ore_name}")
                 
@@ -198,7 +202,8 @@ def IceLock():
                         # 检查矿石名称是否包含在类型中，或者类型是否包含矿石名称
                         if ore_name in ore_type or ore_type in ore_name:
                             matched_ore_name = ore_name
-                            matched_price = ore_price_dict[ore_name]
+                            matched_price = ore_price_dict[ore_name]['price']
+                            matched_enabled = ore_price_dict[ore_name]['enabled']
                             print(f"调试: 部分匹配到矿石: {ore_type} -> {matched_ore_name}")
                             break
             
@@ -206,6 +211,18 @@ def IceLock():
             if matched_ore_name is None or matched_price is None:
                 if 调试模式 == 1 :
                     print(f"调试: 未匹配到矿石类型: {ore_type}，跳过")
+                continue
+            
+            # 检查Ture&False列的值，如果为False则跳过不锁定
+            if matched_enabled is False:
+                if 调试模式 == 1 :
+                    print(f"调试: 矿石 {matched_ore_name} 的Ture&False值为False，跳过锁定")
+                continue
+            
+            # 检查距离是否在挖掘范围内，如果距离大于等于矿头挖掘距离则跳过
+            if distance_km is None or distance_km >= 矿头挖掘距离:
+                if 调试模式 == 1 :
+                    print(f"调试: 矿石 {matched_ore_name} 距离 {distance_km}km 超出挖掘范围（矿头挖掘距离={矿头挖掘距离}km），跳过锁定")
                 continue
             
             # 添加到有效矿石列表
@@ -239,58 +256,54 @@ def IceLock():
         for idx, ore in enumerate(unique_ores_list, 1):
             print(f"  {idx}. {ore['name']}, 价格: {ore['price']}, 距离: {ore['distance']}")
         
-        # 锁定所有找到的矿石
-        locked_count = 0
-        for idx, ore in enumerate(unique_ores_list, 1):
-            print(f"\n开始锁定第 {idx} 个矿石: {ore['name']}")
-            
-            # 解析位置信息（字符串格式的列表转换为列表）
-            position_str = ore['row'][3]
-            try:
-                # 将字符串 "[x_min, y_min, x_max, y_max]" 转换为列表
-                import ast
-                position = ast.literal_eval(position_str)
-                if not isinstance(position, list) or len(position) != 4:
-                    continue
-            except Exception as e:
-                continue
-            
-            # 点击矿石（右键，button_type=1）
-            print(f"点击矿石位置: {position}")
-            if not tools.random_click_in_inscribed_circle(
-                position, 
-                3, 
-                1, 
-                position_ratio=总览区域比例
-            ):
-                continue
-            
-            # 等待一小段时间，让菜单弹出
-            time.sleep(0.5)
-            
-            # 锁定目标（左键，button_type=0）
-            # 刷新OCR识别并查找"锁定目标"按钮（因为点击矿石后可能弹出菜单）
-            lock_position = tools.find_keyword_position("锁定目标", refresh=True, verbose=False)
-            if lock_position is None:
-                continue
-            
-            print(f"点击锁定目标位置: {lock_position}")
-            if not tools.random_click_in_inscribed_circle(
-                lock_position,
-                3,
-                0,
-                position_ratio=总览区域比例
-            ):
-                continue
-            
-            locked_count += 1
-            print(f"成功锁定第 {idx} 个目标: {ore['name']}")
-        
-        if locked_count > 0:
-            print(f"\n成功锁定所有 {locked_count} 个目标")
-            return True
-        else:
+        # 只锁定第一个（最贵的）矿石
+        if len(unique_ores_list) == 0:
             return False
+        
+        ore = unique_ores_list[0]
+        print(f"\n开始锁定矿石: {ore['name']}")
+        
+        # 解析位置信息（字符串格式的列表转换为列表）
+        position_str = ore['row'][3]
+        try:
+            # 将字符串 "[x_min, y_min, x_max, y_max]" 转换为列表
+            import ast
+            position = ast.literal_eval(position_str)
+            if not isinstance(position, list) or len(position) != 4:
+                return False
+        except Exception as e:
+            return False
+        
+        # 点击矿石（右键，button_type=1）
+        print(f"点击矿石位置: {position}")
+        if not tools.random_click_in_inscribed_circle(
+            position, 
+            3, 
+            1, 
+            position_ratio=总览区域比例
+        ):
+            return False
+        
+        # 等待一小段时间，让菜单弹出
+        time.sleep(0.5)
+        
+        # 锁定目标（左键，button_type=0）
+        # 刷新OCR识别并查找"锁定目标"按钮（因为点击矿石后可能弹出菜单）
+        lock_position = tools.find_keyword_position("锁定目标", refresh=True, verbose=False)
+        if lock_position is None:
+            return False
+        
+        print(f"点击锁定目标位置: {lock_position}")
+        if not tools.random_click_in_inscribed_circle(
+            lock_position,
+            3,
+            0,
+            position_ratio=总览区域比例
+        ):
+            return False
+        
+        print(f"成功锁定目标: {ore['name']}")
+        return True
         
     except Exception as e:
         return False
@@ -1050,7 +1063,7 @@ def InitializeMonitoring(function_list=None):
         # {'name': 'tools.function_name', 'args': (), 'kwargs': {'param1': value1}},
         ##########################################################################################################
         {"name" : "src.tools.draw_region_by_coordinates()","env_key_name":"总览区域","duration":3000,"border_width":2,"border_color":"red"},
-        {"name" : "src.tools.draw_region_by_ratio()","env_key_name":"总览区域比例","position":3,"duration":3000,"border_width":2,"border_color":"red"},
+        {"name" : "src.tools.draw_region_by_ratio()","env_key_name":"总览区域比例","position":2,"duration":3000,"border_width":2,"border_color":"red"},
         {"name" : "src.tools.draw_region_by_ratio()","env_key_name":"压缩交互区","position":3,"duration":3000,"border_width":2,"border_color":"red"},
         {"name" : "src.tools.draw_circle_by_point()","env_key_name":"压缩交互左上定位点","radius":10,"duration":3000,"border_width":2,"border_color":"red"},
         {"name" : "src.tools.draw_circle_by_point()","env_key_name":"压缩交互右下定位点","radius":10,"duration":3000,"border_width":2,"border_color":"red"},

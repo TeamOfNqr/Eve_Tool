@@ -5,6 +5,7 @@ import numpy as np
 from typing import Union, List
 import os
 import threading
+import inspect
 
 # 加载环境变量
 from dotenv import load_dotenv, find_dotenv,dotenv_values, set_key
@@ -968,4 +969,380 @@ def AutoIceMining_MultiWindow_Cycle():
             print(f"调试: AutoIceMining_MultiWindow_Cycle() 执行失败: {str(e)}")
         print(f"多窗口自动挖冰矿循环函数执行失败: {str(e)}")
         return False
+
+def InitializeMonitoring(function_list=None):
+    """
+    ### 初始化监控区域 ###
+    自动同时执行该文件中的所有函数（使用多线程）
+    
+    参数：
+    function_list (list, optional): 要执行的函数配置列表。如果为None，则使用配置区域中的设置
+        支持多种格式：
+        1. 简单格式（字符串）：函数名，无参数
+           当前模块: ['Info_Show', 'IceLock']
+           其他模块: ['tools.get_mouse_position_ratio', 'src.tools.function_name']
+        2. 完整格式（字典）：包含函数名和参数
+           例如: [
+               'Info_Show',  # 当前模块，无参数
+               'tools.function_name',  # 其他模块，无参数
+               {'name': 'some_function', 'module': 'src.tools', 'args': (arg1, arg2), 'kwargs': {'key': 'value'}},
+               {'name': 'tools.function_name', 'args': (), 'kwargs': {}},  # 模块名在name中
+           ]
+    
+    配置区域（在函数内部）：
+    - FUNCTIONS_TO_EXECUTE: 默认要执行的函数列表，支持多种格式：
+      1. 简单格式：字符串
+         - 当前模块: 'Info_Show'
+         - 其他模块: 'tools.function_name' 或 'src.tools.function_name'
+      2. 完整格式：字典
+         - 当前模块: {'name': 'Info_Show', 'args': (), 'kwargs': {}}
+         - 其他模块: {'name': 'function_name', 'module': 'src.tools', 'args': (), 'kwargs': {}}
+           或: {'name': 'tools.function_name', 'args': (), 'kwargs': {}}
+    - EXCLUDED_FUNCTIONS: 排除的函数列表（仅对当前模块的函数生效）
+    
+    返回：
+    dict: 包含每个函数执行结果的字典
+    {
+        '函数名': {
+            'status': 'success' 或 'error',
+            'result': 函数返回值,
+            'error': 错误信息（如果有）
+        }
+    }
+    ################
+    """
+    # ========== 配置区域：在这里填写要执行的函数名和参数 ==========
+    # 如果列表为空，则执行所有函数（排除列表中的除外）
+    # 如果列表不为空，则只执行列表中的函数
+    # 
+    # 支持三种格式：
+    # 1. 简单格式：字符串（当前模块的函数名，无参数）
+    #    例如: 'Info_Show'
+    # 
+    # 2. 模块.函数格式：字符串（其他模块的函数，使用点号分隔）
+    #    例如: 'tools.get_mouse_position_ratio' 或 'src.tools.function_name'
+    # 
+    # 3. 完整格式：字典
+    #    - 'name': 函数名（必需）
+    #      如果是当前模块: 'Info_Show'
+    #      如果是其他模块: 'tools.function_name' 或 'src.tools.function_name'
+    #    - 'module': 模块路径（可选，如果name中包含点号则自动解析）
+    #      例如: 'src.tools' 或 'tools'
+    #    - 'args': 位置参数，可以是元组或列表，例如: (arg1, arg2) 或 [arg1, arg2]
+    #    - 'kwargs': 关键字参数，必须是字典，例如: {'param1': value1, 'param2': value2}
+    # 
+    # 示例：
+    FUNCTIONS_TO_EXECUTE = [
+        ##########################################################################################################
+        # 示例1：简单格式（当前模块的函数，无参数）
+        # 'Info_Show',
+        # 'IceLock',
+        # 示例2：模块.函数格式（其他模块的函数，无参数）
+        # 'tools.get_mouse_position_ratio',
+        # 'src.tools.function_name',
+        # 示例3：完整格式 - 当前模块函数，无参数
+        # {'name': 'Info_Show', 'args': (), 'kwargs': {}},
+        # 示例4：完整格式 - 其他模块函数，无参数
+        # {'name': 'get_mouse_position_ratio', 'module': 'src.tools', 'args': (), 'kwargs': {}},
+        # {'name': 'tools.get_mouse_position_ratio', 'args': (), 'kwargs': {}},  # 也可以直接在name中指定模块
+        # 示例5：完整格式 - 带参数
+        # {'name': 'some_function', 'module': 'src.tools', 'args': (arg1, arg2), 'kwargs': {}},
+        # {'name': 'tools.function_name', 'args': (), 'kwargs': {'param1': value1}},
+        ##########################################################################################################
+        {"name" : "src.tools.draw_region_by_coordinates()","env_key_name":"总览区域","duration":3000,"border_width":2,"border_color":"red"},
+        {"name" : "src.tools.draw_region_by_ratio()","env_key_name":"总览区域比例","position":3,"duration":3000,"border_width":2,"border_color":"red"},
+        {"name" : "src.tools.draw_region_by_ratio()","env_key_name":"压缩交互区","position":3,"duration":3000,"border_width":2,"border_color":"red"},
+        {"name" : "src.tools.draw_circle_by_point()","env_key_name":"压缩交互左上定位点","radius":10,"duration":3000,"border_width":2,"border_color":"red"},
+        {"name" : "src.tools.draw_circle_by_point()","env_key_name":"压缩交互右下定位点","radius":10,"duration":3000,"border_width":2,"border_color":"red"},
+        {"name" : "src.tools.draw_circle_by_point()","env_key_name":"第一采集器位置","radius":10,"duration":3000,"border_width":2,"border_color":"red"},
+        {"name" : "src.tools.draw_circle_by_point()","env_key_name":"第二采集器位置","radius":10,"duration":3000,"border_width":2,"border_color":"red"},
+        {"name" : "src.tools.draw_region_by_size()","env_key_name":"锁定状态监控区","duration":3000,"border_width":2,"border_color":"red"},
+        {"name" : "src.tools.draw_region_by_size()","env_key_name":"矿仓剩余空间监控区","duration":3000,"border_width":2,"border_color":"red"},
+    ]
+    
+    # 排除不应该自动执行的函数
+    EXCLUDED_FUNCTIONS = [
+        'Execute_All_Functions',  # 排除自身，避免递归
+        'Stop_AutoIceMining_Monitor_Forone',  # 停止函数
+    ]
+    # ====================================================
+    
+    # 获取当前模块的所有函数
+    import sys
+    import importlib
+    current_module = sys.modules[__name__]
+    all_functions = {}
+    
+    # 获取当前模块中定义的所有函数
+    for name, obj in inspect.getmembers(current_module, inspect.isfunction):
+        # 只获取在当前模块中定义的函数（排除导入的函数）
+        if inspect.getmodule(obj) == current_module:
+            all_functions[name] = obj
+    
+    def get_function_from_module(module_path, func_name):
+        """
+        从指定模块获取函数
+        
+        参数:
+            module_path: 模块路径，例如 'src.tools' 或 'tools'
+            func_name: 函数名
+        
+        返回:
+            函数对象，如果找不到则返回None
+        """
+        try:
+            # 导入模块
+            module = importlib.import_module(module_path)
+            # 获取函数
+            if hasattr(module, func_name):
+                func = getattr(module, func_name)
+                if inspect.isfunction(func):
+                    return func
+            return None
+        except Exception as e:
+            print(f"警告: 无法从模块 {module_path} 导入函数 {func_name}: {str(e)}")
+            return None
+    
+    def parse_function_name(func_name):
+        """
+        解析函数名，判断是当前模块还是其他模块的函数
+        
+        返回:
+            (is_external, module_path, actual_func_name)
+            is_external: 是否是外部模块
+            module_path: 模块路径（如果是外部模块）
+            actual_func_name: 实际的函数名
+        """
+        # 去除函数名末尾的括号（如果存在）
+        func_name = func_name.rstrip('()')
+        
+        if '.' in func_name:
+            # 包含点号，可能是模块.函数格式
+            parts = func_name.split('.')
+            if len(parts) >= 2:
+                # 尝试解析：可能是 'tools.func' 或 'src.tools.func'
+                # 最后一部分是函数名，前面是模块路径
+                actual_func_name = parts[-1]
+                module_path = '.'.join(parts[:-1])
+                return True, module_path, actual_func_name
+        # 当前模块的函数
+        return False, None, func_name
+    
+    # 确定要执行的函数列表
+    # 优先级：function_list 参数 > FUNCTIONS_TO_EXECUTE 配置 > 所有函数（排除列表中的除外）
+    if function_list is not None:
+        # 使用传入的参数
+        target_functions = function_list
+    elif FUNCTIONS_TO_EXECUTE:
+        # 使用配置列表
+        target_functions = FUNCTIONS_TO_EXECUTE
+    else:
+        # 执行所有函数（排除列表中的除外）
+        target_functions = None
+    
+    # 解析函数配置并构建执行列表
+    # functions_to_execute 格式: {函数名: {'func': 函数对象, 'args': 位置参数, 'kwargs': 关键字参数}}
+    if target_functions is None:
+        # 执行所有函数（排除列表中的除外）
+        functions_to_execute = {}
+        for name, func in all_functions.items():
+            if name not in EXCLUDED_FUNCTIONS:
+                functions_to_execute[name] = {
+                    'func': func,
+                    'args': (),
+                    'kwargs': {}
+                }
+    else:
+        # 只执行指定的函数
+        functions_to_execute = {}
+        for index, func_config in enumerate(target_functions):
+            # 解析配置格式
+            if isinstance(func_config, str):
+                # 简单格式：字符串（函数名，无参数）
+                func_name = func_config
+                module_path = None
+                args = ()
+                kwargs = {}
+            elif isinstance(func_config, dict):
+                # 完整格式：字典
+                func_name = func_config.get('name')
+                module_path = func_config.get('module')  # 可选的模块路径
+                args = func_config.get('args', ())
+                kwargs = func_config.get('kwargs', {})
+                
+                if not func_name:
+                    print(f"警告: 函数配置缺少 'name' 字段，跳过: {func_config}")
+                    continue
+                
+                # 从字典中提取其他字段作为关键字参数（排除保留字段）
+                # 保留字段：'name', 'module', 'args', 'kwargs'
+                reserved_keys = {'name', 'module', 'args', 'kwargs'}
+                extra_kwargs = {k: v for k, v in func_config.items() if k not in reserved_keys}
+                
+                # 合并 kwargs：extra_kwargs 作为基础，kwargs 中的值会覆盖 extra_kwargs
+                if extra_kwargs:
+                    if not kwargs:
+                        kwargs = extra_kwargs
+                    else:
+                        # 合并字典，kwargs 优先
+                        kwargs = {**extra_kwargs, **kwargs}
+            else:
+                print(f"警告: 无效的函数配置格式，跳过: {func_config}")
+                continue
+            
+            # 解析函数名，判断是当前模块还是其他模块的函数
+            is_external, parsed_module_path, actual_func_name = parse_function_name(func_name)
+            
+            # 确定模块路径
+            if is_external:
+                # 从函数名中解析出的模块路径
+                final_module_path = parsed_module_path
+                display_name = func_name  # 使用完整名称显示
+            elif module_path:
+                # 配置中明确指定了模块路径
+                final_module_path = module_path
+                display_name = f"{module_path}.{actual_func_name}"
+            else:
+                # 当前模块的函数
+                final_module_path = None
+                display_name = actual_func_name
+            
+            # 验证函数名（只对当前模块的函数检查排除列表）
+            if not is_external and not module_path:
+                if actual_func_name in EXCLUDED_FUNCTIONS:
+                    print(f"警告: 函数 {display_name} 在排除列表中，跳过")
+                    continue
+            
+            # 获取函数对象
+            func = None
+            if final_module_path:
+                # 从其他模块获取函数
+                func = get_function_from_module(final_module_path, actual_func_name)
+                if func is None:
+                    print(f"警告: 无法从模块 {final_module_path} 获取函数 {actual_func_name}，跳过")
+                    continue
+            else:
+                # 从当前模块获取函数
+                if actual_func_name not in all_functions:
+                    print(f"警告: 函数 {display_name} 不存在，跳过")
+                    continue
+                func = all_functions[actual_func_name]
+            
+            # 处理args格式：确保是元组
+            if args is None:
+                args_tuple = ()
+            elif isinstance(args, tuple):
+                args_tuple = args
+            elif isinstance(args, list):
+                args_tuple = tuple(args)
+            else:
+                # 单个值，包装成元组
+                args_tuple = (args,)
+            
+            # 处理kwargs格式：确保是字典
+            if kwargs is None:
+                kwargs_dict = {}
+            elif isinstance(kwargs, dict):
+                kwargs_dict = kwargs
+            else:
+                kwargs_dict = {}
+                print(f"警告: 函数 {display_name} 的 kwargs 格式不正确，将使用空字典")
+            
+            # 生成唯一键：如果有env_key_name，使用函数名+env_key_name；否则使用函数名+索引
+            if isinstance(func_config, dict) and 'env_key_name' in func_config:
+                unique_key = f"{display_name}[{func_config['env_key_name']}]"
+            else:
+                unique_key = f"{display_name}[{index}]"
+            
+            # 添加到执行列表（使用唯一键）
+            functions_to_execute[unique_key] = {
+                'func': func,
+                'args': args_tuple,
+                'kwargs': kwargs_dict,
+                'display_name': display_name  # 保留原始显示名称用于日志
+            }
+    
+    print(f"找到 {len(functions_to_execute)} 个函数，开始同时执行...")
+    print(f"函数列表: {list(functions_to_execute.keys())}")
+    print("-" * 50)
+    
+    # 存储执行结果的字典
+    results = {}
+    # 用于线程同步的锁
+    results_lock = threading.Lock()
+    
+    def execute_function(func_name, func_info):
+        """执行单个函数的包装函数"""
+        func = func_info['func']
+        args = func_info['args']
+        kwargs = func_info['kwargs']
+        display_name = func_info.get('display_name', func_name)  # 使用显示名称，如果没有则使用唯一键
+        
+        try:
+            # 显示参数信息
+            args_str = f"args={args}" if args else ""
+            kwargs_str = f"kwargs={kwargs}" if kwargs else ""
+            params_str = ", ".join(filter(None, [args_str, kwargs_str]))
+            if params_str:
+                print(f"[线程] 开始执行函数: {display_name}({params_str})")
+            else:
+                print(f"[线程] 开始执行函数: {display_name}()")
+            
+            # 调用函数并传递参数
+            result = func(*args, **kwargs)
+            
+            with results_lock:
+                results[func_name] = {
+                    'status': 'success',
+                    'result': result,
+                    'error': None
+                }
+            print(f"[线程] 函数 {display_name} 执行完成，返回值: {result}")
+        except Exception as e:
+            error_msg = str(e)
+            with results_lock:
+                results[func_name] = {
+                    'status': 'error',
+                    'result': None,
+                    'error': error_msg
+                }
+            print(f"[线程] 函数 {display_name} 执行失败: {error_msg}")
+    
+    # 创建并启动所有线程
+    threads = []
+    for func_name, func_info in functions_to_execute.items():
+        thread = threading.Thread(
+            target=execute_function,
+            args=(func_name, func_info),
+            name=f"Thread-{func_name}"
+        )
+        threads.append(thread)
+        thread.start()
+    
+    # 等待所有线程完成
+    print(f"\n等待所有 {len(threads)} 个线程完成...")
+    for thread in threads:
+        thread.join()
+    
+    print("\n" + "=" * 50)
+    print("所有函数执行完成！")
+    print("=" * 50)
+    
+    # 打印执行结果摘要
+    success_count = sum(1 for r in results.values() if r['status'] == 'success')
+    error_count = sum(1 for r in results.values() if r['status'] == 'error')
+    
+    print(f"\n执行摘要:")
+    print(f"  成功: {success_count} 个函数")
+    print(f"  失败: {error_count} 个函数")
+    print(f"\n详细结果:")
+    
+    for func_name, result_info in results.items():
+        status = result_info['status']
+        if status == 'success':
+            print(f"  ✓ {func_name}: 成功 (返回值: {result_info['result']})")
+        else:
+            print(f"  ✗ {func_name}: 失败 (错误: {result_info['error']})")
+    
+    return results
 

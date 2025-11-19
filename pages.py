@@ -78,6 +78,8 @@ class InfoPage(QWidget):
 
         # 自动冰矿监控运行状态
         self.auto_ice_running = False
+        # 多账号自动挖矿控制运行状态
+        self.auto_multi_account_running = False
 
         # 主布局：水平布局，左侧70%控制台，右侧30%按钮区域
         main_layout = QHBoxLayout(self)
@@ -183,7 +185,7 @@ class InfoPage(QWidget):
         self.button1.clicked.connect(self.on_button1_clicked)
         button_layout.addWidget(self.button1)
 
-        self.button2 = QPushButton("按钮2")
+        self.button2 = QPushButton("启动多账号自动挖矿控制")
         self.button2.setFixedHeight(36)
         self.button2.setStyleSheet(button_style)
         self.button2.clicked.connect(self.on_button2_clicked)
@@ -318,8 +320,71 @@ class InfoPage(QWidget):
             self.button1.setText("开启单人自动冰矿采集")
 
     def on_button2_clicked(self):
-        """按钮2点击处理：暂无功能"""
-        self._update_console("按钮2", None)
+        """按钮2点击处理：触发多账号自动挖矿控制"""
+        # 如果当前未运行，则启动监控；否则发送停止指令
+        if not self.auto_multi_account_running:
+            # 启动
+            self.auto_multi_account_running = True
+            self.button2.setText("停止多账号自动挖矿控制")
+
+            # 在控制台显示启动信息
+            try:
+                self.console_display.clear()
+                timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                self.console_display.append(f"[{timestamp}] 执行: 多账号自动挖矿控制（已启动）")
+                self.console_display.append("-" * 50)
+                cursor = self.console_display.textCursor()
+                cursor.movePosition(QTextCursor.MoveOperation.End)
+                self.console_display.setTextCursor(cursor)
+            except Exception:
+                pass
+
+            # 在后台线程中执行耗时/长期运行的自动挖矿监控，避免阻塞 UI，
+            # 并通过 RealTimeTextStream 将 print 输出实时写入控制台
+            def _worker():
+                realtime_stream = RealTimeTextStream(self.console_display)
+                try:
+                    with redirect_stdout(realtime_stream):
+                        complex_events.AutoIceMining_Monitor_Forone_WithThrow()
+                    realtime_stream.flush()
+                except Exception as e:
+                    print(f"多账号自动挖矿控制线程异常: {e}")
+                finally:
+                    # 监控结束后在主线程恢复按钮状态
+                    def _reset():
+                        self.auto_multi_account_running = False
+                        self.button2.setText("启动多账号自动挖矿控制")
+                    QCoreApplication.postEvent(
+                        self,
+                        type("DummyEvent", (QEvent,), {})()  # 简单触发事件队列
+                    )
+                    QCoreApplication.instance().postEvent(
+                        self,
+                        type("DummyEvent", (QEvent,), {})()
+                    )
+                    # 为了简单起见，直接在后台线程更新标志，按钮文字依然在下次点击前可见
+                    self.auto_multi_account_running = False
+                    self.button2.setText("启动多账号自动挖矿控制")
+
+            threading.Thread(target=_worker, daemon=True).start()
+        else:
+            # 发送停止指令
+            complex_events.Stop_AutoIceMining_Monitor_Forone()
+
+            # 在控制台提示停止
+            try:
+                timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                self.console_display.append(f"[{timestamp}] 已请求终止多账号自动挖矿控制")
+                self.console_display.append("-" * 50)
+                cursor = self.console_display.textCursor()
+                cursor.movePosition(QTextCursor.MoveOperation.End)
+                self.console_display.setTextCursor(cursor)
+            except Exception:
+                pass
+
+            # 立即恢复按钮文字，状态标记将在后台线程结束时再次重置
+            self.auto_multi_account_running = False
+            self.button2.setText("启动多账号自动挖矿控制")
 
     def on_button3_clicked(self):
         """按钮3点击处理：暂无功能"""
@@ -950,6 +1015,8 @@ class OreSelectionPage(QWidget):
         
         header.clicked.connect(on_header_clicked)
 
+        # 默认收起状态：隐藏列表容器
+        list_container.setVisible(False)
         section_layout.addWidget(list_container)
         return section
 
@@ -1063,7 +1130,7 @@ class ClickableHeaderLabel(QWidget):
     
     def __init__(self, text, parent=None):
         super().__init__(parent)
-        self.is_expanded = True  # 默认展开状态
+        self.is_expanded = False  # 默认收起状态
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedHeight(36)
         
@@ -1073,7 +1140,7 @@ class ClickableHeaderLabel(QWidget):
         layout.setSpacing(12)
         
         # 箭头标签 - 使用更美观的图标
-        self.arrow_label = QLabel("▼")
+        self.arrow_label = QLabel("▶")
         self.arrow_label.setFont(QFont("Microsoft YaHei", 11))
         self.arrow_label.setStyleSheet("""
             color: #2196f3;

@@ -1582,6 +1582,103 @@ def Throw_Ore_To_Fleet_Hangar(radius=2):
         print("抛出矿石至舰队机库函数执行失败")
         return False
 
+def Unload_Mining_Crystal():
+    """
+    ### 卸载矿石挖掘晶体函数 ###
+    执行卸载矿石挖掘晶体的操作流程：
+    1. 初始化环境变量，从.env读取"晶体交互区"配置
+    2. 根据"晶体交互区"比例计算屏幕左下区域
+    3. 在该区域内执行OCR识别
+    4. 查找"卸载弹药"关键词的位置
+    5. 点击找到的关键词位置
+    
+    返回：
+        True: 成功
+        False: 失败
+    ################
+    """
+    try:
+        # 1. 初始化环境变量
+        晶体交互区 = eval(os.getenv('晶体交互区'))
+        
+        # 验证晶体交互区格式
+        if not isinstance(晶体交互区, (list, tuple)) or len(晶体交互区) != 2:
+            print("错误: 晶体交互区格式不正确")
+            return False
+        
+        # 2. 根据"晶体交互区"比例计算屏幕左下区域
+        screen_width, screen_height = pyautogui.size()
+        x_ratio, y_ratio = 晶体交互区
+        
+        # 计算左下区域
+        # 左下区域：从(0, y_ratio * screen_height)到(x_ratio * screen_width, screen_height)
+        left = 0
+        top = int(screen_height * y_ratio)
+        width = int(screen_width * x_ratio)
+        height = screen_height - top
+        
+        region = (left, top, width, height)
+        
+        if 调试模式 == 1:
+            print(f"调试: 左下区域 region = {region}")
+            print(f"调试: 屏幕尺寸 = ({screen_width}, {screen_height})")
+            print(f"调试: 晶体交互区比例 = ({x_ratio}, {y_ratio})")
+        
+        # 3. 在该区域内执行OCR识别
+        main.Imageecognition(region=region, verbose=False)
+        
+        # 4. 查找"卸载弹药"关键词的位置
+        卸载弹药位置 = find_keyword_position("卸载弹药", refresh=False, verbose=False)
+        
+        if 卸载弹药位置 is None:
+            print("未找到'卸载弹药'关键词")
+            return False
+        
+        # 计算"卸载弹药"关键词的中心位置
+        x_min, y_min, x_max, y_max = 卸载弹药位置
+        
+        if 调试模式 == 1:
+            print(f"调试: 找到'卸载弹药'关键词位置（相对坐标）= [{x_min}, {y_min}, {x_max}, {y_max}]")
+            print(f"调试: 识别区域偏移量 offset = ({left}, {top})")
+        
+        # 补偿识别区域的偏移量：将识别区域内的相对坐标转换为屏幕绝对坐标
+        x_min = x_min + left
+        y_min = y_min + top
+        x_max = x_max + left
+        y_max = y_max + top
+        
+        if 调试模式 == 1:
+            print(f"调试: 转换后的坐标（绝对坐标）= [{x_min}, {y_min}, {x_max}, {y_max}]")
+        
+        center_x = (x_min + x_max) // 2
+        center_y = (y_min + y_max) // 2
+        
+        # 验证坐标是否在合理范围内
+        if center_x < 0 or center_x > screen_width or center_y < 0 or center_y > screen_height:
+            print(f"警告: 计算的中心位置 ({center_x}, {center_y}) 超出屏幕范围!")
+            print(f"屏幕范围: ({screen_width}, {screen_height})")
+            if 调试模式 == 1:
+                print(f"调试: 这可能表示坐标转换有问题")
+            return False
+        
+        if 调试模式 == 1:
+            print(f"调试: 计算的中心位置 = ({center_x}, {center_y})")
+        
+        # 5. 点击找到的关键词位置
+        pyautogui.moveTo(center_x, center_y)
+        time.sleep(0.2)
+        pyautogui.click(button='left')
+        time.sleep(0.2)
+        
+        print("卸载矿石挖掘晶体操作完成")
+        return True
+        
+    except Exception as e:
+        if 调试模式 == 1:
+            print(f"调试: Unload_Mining_Crystal() 执行失败: {str(e)}")
+        print("卸载矿石挖掘晶体函数执行失败")
+        return False
+
 def draw_region_by_ratio(
     env_key_name: str,
     position: int,

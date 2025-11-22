@@ -76,6 +76,25 @@ def OverviewScale_Change():
         print("总览比例修改函数执行失败")
         return False
 
+def CrystalArea_Change():
+    """
+    ### 晶体交互区修改函数 ###
+    参数：
+        无
+    返回：
+        True: 成功
+        False: 失败
+    ################
+    """
+    try:
+        scale = tools.get_mouse_position_ratio()
+        tools.write_to_env("晶体交互区", scale)
+        print("晶体交互区写入完成")
+        return True
+    except:
+        print("晶体交互区修改函数执行失败")
+        return False
+
 def CompressedArea_Change():
     """
     ### 压缩交互区修改函数 ###
@@ -303,9 +322,272 @@ def IceLock():
             return False
         
         print(f"成功锁定目标: {ore['name']}")
+        
+        # 将锁定的矿石名称写入到.env文件的"上一个矿石"键中（带双引号）
+        try:
+            tools.write_to_env("上一个矿石", f'"{ore["name"]}"')
+            print(f"已将矿石名称 '{ore['name']}' 写入到.env文件的'上一个矿石'键中")
+        except Exception as e:
+            if 调试模式 == 1:
+                print(f"调试: 写入矿石名称到.env文件失败: {str(e)}")
+        
         return True
         
     except Exception as e:
+        return False
+
+def OreLock(data_file_name):
+    """
+    ### 矿石锁定函数 ###
+    从OCR识别的表格数据中找到最贵的且距离小于矿头挖掘距离的矿石，
+    然后点击矿石并锁定目标
+    
+    参数：
+    data_file_name (str): 数据文件名，例如 "CommonOre_data.py"，用于指定数据来源
+    
+    返回：
+    True: 成功
+    False: 失败
+    ################
+    """
+    try:
+        # 动态导入数据模块
+        # 处理文件名：去掉 .py 后缀（如果存在）
+        module_name = data_file_name
+        if module_name.endswith('.py'):
+            module_name = module_name[:-3]
+        
+        # 构建模块路径：assets.data.模块名
+        module_path = f"assets.data.{module_name}"
+        
+        # 导入模块
+        import importlib
+        try:
+            data_module = importlib.import_module(module_path)
+        except ImportError as e:
+            print(f"错误: 无法导入模块 {module_path}: {str(e)}")
+            return False
+        
+        # 获取 data_isk 数据
+        if not hasattr(data_module, 'data_isk'):
+            print(f"错误: 模块 {module_path} 中没有找到 data_isk 数据")
+            return False
+        
+        ore_data_isk = data_module.data_isk
+        
+        # 执行OCR识别（不显示详细输出）
+        main.Imageecognition_right_third(总览区域比例, verbose=False)
+        
+        # 查找 assets/tmp 目录中的 JSON 文件并处理
+        tmp_path = "./assets/tmp"
+        json_file = None
+        if os.path.exists(tmp_path):
+            for filename in os.listdir(tmp_path):
+                if filename.endswith('.json'):
+                    json_file = os.path.join(tmp_path, filename)
+                    break
+        
+        if not json_file:
+            return False
+        
+        # 解析OCR表格数据
+        table_data = tools.parse_ocr_table_json(json_file)
+        if not table_data:
+            return False
+        
+        # 调试：显示所有解析到的表格数据
+        if 调试模式 == 1 :
+            print(f"调试: 共解析到 {len(table_data)} 行数据")
+            for i, row in enumerate(table_data[:10]):  # 只显示前10行
+                print(f"调试: 第{i+1}行: 距离={row[0] if len(row) > 0 else 'N/A'}, 名字={row[1] if len(row) > 1 else 'N/A'}, 类型={row[2] if len(row) > 2 else 'N/A'}")
+        
+        # 创建矿石价格字典（从动态导入的 data_isk）
+        # 格式: {矿石名称: {'price': 价格, 'enabled': Ture&False值}}
+        ore_price_dict = {}
+        for ore_item in ore_data_isk:
+            if len(ore_item) >= 6 and ore_item[0] != 'core-name':  # 跳过表头，需要至少6列（包含Ture&False列）
+                ore_name = ore_item[0]  # 矿石名称
+                try:
+                    # 处理价格字符串（可能包含逗号，如 "13,846"）
+                    price_str = str(ore_item[4]).replace(',', '')
+                    ore_price = int(price_str)  # 矿石价格（isk/m^3）
+                    ore_enabled = ore_item[5]  # Ture&False列（布尔值）
+                    ore_price_dict[ore_name] = {'price': ore_price, 'enabled': ore_enabled}
+                except (ValueError, IndexError):
+                    continue
+        
+        # 从上往下遍历表格数据，找到所有符合条件的矿石
+        valid_ores = []
+        
+        for i, row in enumerate(table_data):
+            if len(row) < 4:
+                continue
+            
+            distance_str = row[0]  # 距离列
+            ore_type = row[2]      # 类型列（矿石名称）
+            position_str = row[3]  # 位置列
+            
+            # 跳过无效数据
+            if distance_str == "-" or ore_type == "-" or position_str == "-":
+                continue
+            
+            # 解析距离
+            distance_km = tools.parse_distance_to_km(distance_str)
+            
+            # 调试信息：显示所有距离解析结果
+            if 调试模式 == 1 :
+                print(f"调试: 距离字符串='{distance_str}', 解析后={distance_km}km, 矿头挖掘距离={矿头挖掘距离}km")
+                
+            
+            # 检查矿石类型是否在价格字典中，支持多种匹配方式
+            matched_ore_name = None
+            matched_price = None
+            matched_enabled = None
+            
+            # 1. 首先尝试完全匹配
+            if ore_type in ore_price_dict:
+                matched_ore_name = ore_type
+                matched_price = ore_price_dict[ore_type]['price']
+                matched_enabled = ore_price_dict[ore_type]['enabled']
+                if 调试模式 == 1 :
+                    print(f"调试: 完全匹配到矿石: {ore_type} -> {matched_ore_name}")
+            else:
+                # 2. 尝试提取括号内的内容（例如"小行星(白釉冰)" -> "白釉冰"）
+                import re
+                match = re.search(r'\(([^)]+)\)', ore_type)
+                if match:
+                    extracted_name = match.group(1)
+                    if extracted_name in ore_price_dict:
+                        matched_ore_name = extracted_name
+                        matched_price = ore_price_dict[extracted_name]['price']
+                        matched_enabled = ore_price_dict[extracted_name]['enabled']
+                        if 调试模式 == 1 :
+                            print(f"调试: 括号匹配到矿石: {ore_type} -> {matched_ore_name}")
+                
+                # 3. 如果还没有匹配，尝试部分匹配（例如"高密度白釉冰"包含"白釉冰"）
+                # 优先匹配更长的名称（更精确的匹配）
+                if matched_ore_name is None:
+                    # 按名称长度排序，优先匹配更长的名称
+                    sorted_ore_names = sorted(ore_price_dict.keys(), key=len, reverse=True)
+                    for ore_name in sorted_ore_names:
+                        # 检查矿石名称是否包含在类型中，或者类型是否包含矿石名称
+                        if ore_name in ore_type or ore_type in ore_name:
+                            matched_ore_name = ore_name
+                            matched_price = ore_price_dict[ore_name]['price']
+                            matched_enabled = ore_price_dict[ore_name]['enabled']
+                            print(f"调试: 部分匹配到矿石: {ore_type} -> {matched_ore_name}")
+                            break
+            
+            # 如果没有匹配到任何矿石，跳过这一行
+            if matched_ore_name is None or matched_price is None:
+                if 调试模式 == 1 :
+                    print(f"调试: 未匹配到矿石类型: {ore_type}，跳过")
+                continue
+            
+            # 检查Ture&False列的值，如果为False则跳过不锁定
+            if matched_enabled is False:
+                if 调试模式 == 1 :
+                    print(f"调试: 矿石 {matched_ore_name} 的Ture&False值为False，跳过锁定")
+                continue
+            
+            # 检查距离是否在挖掘范围内，如果距离大于等于矿头挖掘距离则跳过
+            if distance_km is None or distance_km >= 矿头挖掘距离:
+                if 调试模式 == 1 :
+                    print(f"调试: 矿石 {matched_ore_name} 距离 {distance_km}km 超出挖掘范围（矿头挖掘距离={矿头挖掘距离}km），跳过锁定")
+                continue
+            
+            # 添加到有效矿石列表
+            valid_ores.append({
+                'row': row,
+                'name': matched_ore_name,
+                'price': matched_price,
+                'distance': distance_str,
+                'index': i
+            })
+        
+        # 如果没有找到合适的矿石
+        if not valid_ores:
+            return False
+        
+        # 按价格从高到低排序，找到最贵的矿石
+        valid_ores.sort(key=lambda x: x['price'], reverse=True)
+        
+        # 去重：只保留不同名称的矿石（保留价格最高的）
+        unique_ores = {}
+        for ore in valid_ores:
+            ore_name = ore['name']
+            if ore_name not in unique_ores or ore['price'] > unique_ores[ore_name]['price']:
+                unique_ores[ore_name] = ore
+        
+        unique_ores_list = list(unique_ores.values())
+        unique_ores_list.sort(key=lambda x: x['price'], reverse=True)
+        
+        # 显示找到的矿石
+        print(f"找到 {len(unique_ores_list)} 个不同的矿石:")
+        for idx, ore in enumerate(unique_ores_list, 1):
+            print(f"  {idx}. {ore['name']}, 价格: {ore['price']}, 距离: {ore['distance']}")
+        
+        # 只锁定第一个（最贵的）矿石
+        if len(unique_ores_list) == 0:
+            return False
+        
+        ore = unique_ores_list[0]
+        print(f"\n开始锁定矿石: {ore['name']}")
+        
+        # 解析位置信息（字符串格式的列表转换为列表）
+        position_str = ore['row'][3]
+        try:
+            # 将字符串 "[x_min, y_min, x_max, y_max]" 转换为列表
+            import ast
+            position = ast.literal_eval(position_str)
+            if not isinstance(position, list) or len(position) != 4:
+                return False
+        except Exception as e:
+            return False
+        
+        # 点击矿石（右键，button_type=1）
+        print(f"点击矿石位置: {position}")
+        if not tools.random_click_in_inscribed_circle(
+            position, 
+            3, 
+            1, 
+            position_ratio=总览区域比例
+        ):
+            return False
+        
+        # 等待一小段时间，让菜单弹出
+        time.sleep(0.5)
+        
+        # 锁定目标（左键，button_type=0）
+        # 刷新OCR识别并查找"锁定目标"按钮（因为点击矿石后可能弹出菜单）
+        lock_position = tools.find_keyword_position("锁定目标", refresh=True, verbose=False)
+        if lock_position is None:
+            return False
+        
+        print(f"点击锁定目标位置: {lock_position}")
+        if not tools.random_click_in_inscribed_circle(
+            lock_position,
+            3,
+            0,
+            position_ratio=总览区域比例
+        ):
+            return False
+        
+        print(f"成功锁定目标: {ore['name']}")
+        
+        # 将锁定的矿石名称写入到.env文件的"上一个矿石"键中（带双引号）
+        try:
+            tools.write_to_env("上一个矿石", f'"{ore["name"]}"')
+            print(f"已将矿石名称 '{ore['name']}' 写入到.env文件的'上一个矿石'键中")
+        except Exception as e:
+            if 调试模式 == 1:
+                print(f"调试: 写入矿石名称到.env文件失败: {str(e)}")
+        
+        return True
+        
+    except Exception as e:
+        if 调试模式 == 1:
+            print(f"调试: OreLock() 执行失败: {str(e)}")
         return False
 
 def Write_MousePlace():
@@ -1062,9 +1344,10 @@ def InitializeMonitoring(function_list=None):
         # {'name': 'some_function', 'module': 'src.tools', 'args': (arg1, arg2), 'kwargs': {}},
         # {'name': 'tools.function_name', 'args': (), 'kwargs': {'param1': value1}},
         ##########################################################################################################
-        {"name" : "src.tools.draw_region_by_coordinates()","env_key_name":"总览区域","duration":3000,"border_width":2,"border_color":"red"},
+        # {"name" : "src.tools.draw_region_by_coordinates()","env_key_name":"总览区域","duration":3000,"border_width":2,"border_color":"red"},
         {"name" : "src.tools.draw_region_by_ratio()","env_key_name":"总览区域比例","position":2,"duration":3000,"border_width":2,"border_color":"red"},
         {"name" : "src.tools.draw_region_by_ratio()","env_key_name":"压缩交互区","position":3,"duration":3000,"border_width":2,"border_color":"red"},
+        {"name" : "src.tools.draw_region_by_ratio()","env_key_name":"晶体交互区","position":3,"duration":3000,"border_width":2,"border_color":"red"},
         {"name" : "src.tools.draw_circle_by_point()","env_key_name":"压缩交互左上定位点","radius":10,"duration":3000,"border_width":2,"border_color":"red"},
         {"name" : "src.tools.draw_circle_by_point()","env_key_name":"压缩交互右下定位点","radius":10,"duration":3000,"border_width":2,"border_color":"red"},
         {"name" : "src.tools.draw_circle_by_point()","env_key_name":"第一采集器位置","radius":10,"duration":3000,"border_width":2,"border_color":"red"},
@@ -1359,3 +1642,28 @@ def InitializeMonitoring(function_list=None):
     
     return results
 
+def UnloadingCrystal():
+    """
+    ### 统一卸载晶体函数 ###
+    参数：
+        无
+    返回：
+        True: 成功
+        False: 失败
+    ################
+    """
+    try:
+        第一采集器位置 = eval(os.getenv('第一采集器位置'))
+        time.sleep(0.2)
+        tools.random_click_in_circle(center = 第一采集器位置,button = 1)
+        time.sleep(0.2)
+        tools.Unload_Mining_Crystal()
+
+        第二采集器位置 = eval(os.getenv('第二采集器位置'))
+        time.sleep(0.2)
+        tools.random_click_in_circle(center = 第二采集器位置,button = 1)
+        time.sleep(0.2)
+        tools.Unload_Mining_Crystal()
+        return True
+    except:
+        return False

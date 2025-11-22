@@ -601,7 +601,7 @@ class MainPage(QWidget):
         right_layout.addWidget(self.button9)
 
         # 创建按钮10
-        self.button10 = QPushButton("按钮10")
+        self.button10 = QPushButton("更新晶体交互区")
         self.button10.setFixedHeight(36)
         self.button10.setStyleSheet(button_style)
         self.button10.clicked.connect(self.on_button10_clicked)
@@ -797,8 +797,7 @@ class MainPage(QWidget):
 
     def on_button10_clicked(self):
         """按钮10点击处理"""
-        # 在这里添加按钮10的具体处理逻辑
-        self._update_console("按钮10")
+        self._update_console("更新晶体交互区", complex_events.CrystalArea_Change)
 
     def on_button11_clicked(self):
         """按钮11点击处理"""
@@ -1697,3 +1696,5 @@ class AboutPage(QWidget):
         except Exception as e:
             self.about_text.setPlainText(f"加载 about.md 文件时出错: {str(e)}\n\n错误详情: {type(e).__name__}")
 
+
+complex_events.UnloadingCrystal()

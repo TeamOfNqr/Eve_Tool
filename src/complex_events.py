@@ -14,19 +14,73 @@ load_dotenv(find_dotenv())
 import time
 
 from assets.data import IceOre_data
+from assets.data import AbyssOre_data
+from assets.data import CommonOre_data
 from src import main
 from src import tools
 from src import window_status
 import pyautogui
 
-# 从环境变量获取总览区域
-总览区域比例 = eval(os.getenv('总览区域比例'))
-矿头挖掘距离 = int(eval(os.getenv('矿头挖掘距离')))
-调试模式 = int(eval(os.getenv('调试模式')))
-锁定状态监控区 = eval(os.getenv('锁定状态监控区'))
-
 # 自动挖冰矿监控的停止事件
 AUTO_ICE_MONITOR_STOP_EVENT = threading.Event()
+
+def get_env_value(key, default=None, eval_value=True, int_value=False):
+    """
+    ### 实时获取环境变量值函数 ###
+    每次调用时重新加载 .env 文件，确保获取最新的值
+    
+    参数：
+    key (str): 环境变量的键名
+    default: 如果环境变量不存在时的默认值
+    eval_value (bool): 是否使用 eval() 解析值（默认 True）
+    int_value (bool): 是否转换为整数（默认 False）
+    
+    返回：
+    环境变量的值（根据参数进行解析和转换）
+    ################
+    """
+    try:
+        # 重新加载 .env 文件以获取最新值
+        load_dotenv(find_dotenv(), override=True)
+        value = os.getenv(key, default)
+        if value is None:
+            return default
+        
+        # 如果需要 eval 解析
+        if eval_value:
+            value = eval(value)
+        
+        # 如果需要转换为整数
+        if int_value:
+            value = int(value)
+        
+        return value
+    except Exception as e:
+        # 避免循环引用，直接获取调试模式
+        try:
+            debug_mode = int(eval(os.getenv('调试模式', '0')))
+            if debug_mode == 1:
+                print(f"调试: 获取环境变量 {key} 失败: {str(e)}")
+        except:
+            pass
+        return default
+
+# 为了保持向后兼容，创建函数来获取常用的环境变量
+def get_总览区域比例():
+    """获取总览区域比例（实时刷新）"""
+    return get_env_value('总览区域比例')
+
+def get_矿头挖掘距离():
+    """获取矿头挖掘距离（实时刷新）"""
+    return get_env_value('矿头挖掘距离', int_value=True)
+
+def get_调试模式():
+    """获取调试模式（实时刷新）"""
+    return get_env_value('调试模式', int_value=True)
+
+def get_锁定状态监控区():
+    """获取锁定状态监控区（实时刷新）"""
+    return get_env_value('锁定状态监控区')
 
 def Info_Show():
     """
@@ -126,7 +180,7 @@ def IceLock():
     """
     try:
         # 执行OCR识别（不显示详细输出）
-        main.Imageecognition_right_third(总览区域比例, verbose=False)
+        main.Imageecognition_right_third(get_总览区域比例(), verbose=False)
         
         # 查找 assets/tmp 目录中的 JSON 文件并处理
         tmp_path = "./assets/tmp"
@@ -146,7 +200,7 @@ def IceLock():
             return False
         
         # 调试：显示所有解析到的表格数据
-        if 调试模式 == 1 :
+        if get_调试模式() == 1 :
             print(f"调试: 共解析到 {len(table_data)} 行数据")
             for i, row in enumerate(table_data[:10]):  # 只显示前10行
                 print(f"调试: 第{i+1}行: 距离={row[0] if len(row) > 0 else 'N/A'}, 名字={row[1] if len(row) > 1 else 'N/A'}, 类型={row[2] if len(row) > 2 else 'N/A'}")
@@ -183,8 +237,8 @@ def IceLock():
             distance_km = tools.parse_distance_to_km(distance_str)
             
             # 调试信息：显示所有距离解析结果
-            if 调试模式 == 1 :
-                print(f"调试: 距离字符串='{distance_str}', 解析后={distance_km}km, 矿头挖掘距离={矿头挖掘距离}km")
+            if get_调试模式() == 1 :
+                print(f"调试: 距离字符串='{distance_str}', 解析后={distance_km}km, 矿头挖掘距离={get_矿头挖掘距离()}km")
                 
             
             # 检查矿石类型是否在价格字典中，支持多种匹配方式
@@ -197,7 +251,7 @@ def IceLock():
                 matched_ore_name = ore_type
                 matched_price = ore_price_dict[ore_type]['price']
                 matched_enabled = ore_price_dict[ore_type]['enabled']
-                if 调试模式 == 1 :
+                if get_调试模式() == 1 :
                     print(f"调试: 完全匹配到矿石: {ore_type} -> {matched_ore_name}")
             else:
                 # 2. 尝试提取括号内的内容（例如"小行星(白釉冰)" -> "白釉冰"）
@@ -209,7 +263,7 @@ def IceLock():
                         matched_ore_name = extracted_name
                         matched_price = ore_price_dict[extracted_name]['price']
                         matched_enabled = ore_price_dict[extracted_name]['enabled']
-                        if 调试模式 == 1 :
+                        if get_调试模式() == 1 :
                             print(f"调试: 括号匹配到矿石: {ore_type} -> {matched_ore_name}")
                 
                 # 3. 如果还没有匹配，尝试部分匹配（例如"高密度白釉冰"包含"白釉冰"）
@@ -228,20 +282,20 @@ def IceLock():
             
             # 如果没有匹配到任何矿石，跳过这一行
             if matched_ore_name is None or matched_price is None:
-                if 调试模式 == 1 :
+                if get_调试模式() == 1 :
                     print(f"调试: 未匹配到矿石类型: {ore_type}，跳过")
                 continue
             
             # 检查Ture&False列的值，如果为False则跳过不锁定
             if matched_enabled is False:
-                if 调试模式 == 1 :
+                if get_调试模式() == 1 :
                     print(f"调试: 矿石 {matched_ore_name} 的Ture&False值为False，跳过锁定")
                 continue
             
             # 检查距离是否在挖掘范围内，如果距离大于等于矿头挖掘距离则跳过
-            if distance_km is None or distance_km >= 矿头挖掘距离:
-                if 调试模式 == 1 :
-                    print(f"调试: 矿石 {matched_ore_name} 距离 {distance_km}km 超出挖掘范围（矿头挖掘距离={矿头挖掘距离}km），跳过锁定")
+            if distance_km is None or distance_km >= get_矿头挖掘距离():
+                if get_调试模式() == 1 :
+                    print(f"调试: 矿石 {matched_ore_name} 距离 {distance_km}km 超出挖掘范围（矿头挖掘距离={get_矿头挖掘距离()}km），跳过锁定")
                 continue
             
             # 添加到有效矿石列表
@@ -299,7 +353,7 @@ def IceLock():
             position, 
             3, 
             1, 
-            position_ratio=总览区域比例
+            position_ratio=get_总览区域比例()
         ):
             return False
         
@@ -317,7 +371,7 @@ def IceLock():
             lock_position,
             3,
             0,
-            position_ratio=总览区域比例
+            position_ratio=get_总览区域比例()
         ):
             return False
         
@@ -328,7 +382,7 @@ def IceLock():
             tools.write_to_env("上一个矿石", f'"{ore["name"]}"')
             print(f"已将矿石名称 '{ore['name']}' 写入到.env文件的'上一个矿石'键中")
         except Exception as e:
-            if 调试模式 == 1:
+            if get_调试模式() == 1:
                 print(f"调试: 写入矿石名称到.env文件失败: {str(e)}")
         
         return True
@@ -376,7 +430,7 @@ def OreLock(data_file_name):
         ore_data_isk = data_module.data_isk
         
         # 执行OCR识别（不显示详细输出）
-        main.Imageecognition_right_third(总览区域比例, verbose=False)
+        main.Imageecognition_right_third(get_总览区域比例(), verbose=False)
         
         # 查找 assets/tmp 目录中的 JSON 文件并处理
         tmp_path = "./assets/tmp"
@@ -396,7 +450,7 @@ def OreLock(data_file_name):
             return False
         
         # 调试：显示所有解析到的表格数据
-        if 调试模式 == 1 :
+        if get_调试模式() == 1 :
             print(f"调试: 共解析到 {len(table_data)} 行数据")
             for i, row in enumerate(table_data[:10]):  # 只显示前10行
                 print(f"调试: 第{i+1}行: 距离={row[0] if len(row) > 0 else 'N/A'}, 名字={row[1] if len(row) > 1 else 'N/A'}, 类型={row[2] if len(row) > 2 else 'N/A'}")
@@ -435,8 +489,8 @@ def OreLock(data_file_name):
             distance_km = tools.parse_distance_to_km(distance_str)
             
             # 调试信息：显示所有距离解析结果
-            if 调试模式 == 1 :
-                print(f"调试: 距离字符串='{distance_str}', 解析后={distance_km}km, 矿头挖掘距离={矿头挖掘距离}km")
+            if get_调试模式() == 1 :
+                print(f"调试: 距离字符串='{distance_str}', 解析后={distance_km}km, 矿头挖掘距离={get_矿头挖掘距离()}km")
                 
             
             # 检查矿石类型是否在价格字典中，支持多种匹配方式
@@ -449,7 +503,7 @@ def OreLock(data_file_name):
                 matched_ore_name = ore_type
                 matched_price = ore_price_dict[ore_type]['price']
                 matched_enabled = ore_price_dict[ore_type]['enabled']
-                if 调试模式 == 1 :
+                if get_调试模式() == 1 :
                     print(f"调试: 完全匹配到矿石: {ore_type} -> {matched_ore_name}")
             else:
                 # 2. 尝试提取括号内的内容（例如"小行星(白釉冰)" -> "白釉冰"）
@@ -461,7 +515,7 @@ def OreLock(data_file_name):
                         matched_ore_name = extracted_name
                         matched_price = ore_price_dict[extracted_name]['price']
                         matched_enabled = ore_price_dict[extracted_name]['enabled']
-                        if 调试模式 == 1 :
+                        if get_调试模式() == 1 :
                             print(f"调试: 括号匹配到矿石: {ore_type} -> {matched_ore_name}")
                 
                 # 3. 如果还没有匹配，尝试部分匹配（例如"高密度白釉冰"包含"白釉冰"）
@@ -480,20 +534,20 @@ def OreLock(data_file_name):
             
             # 如果没有匹配到任何矿石，跳过这一行
             if matched_ore_name is None or matched_price is None:
-                if 调试模式 == 1 :
+                if get_调试模式() == 1 :
                     print(f"调试: 未匹配到矿石类型: {ore_type}，跳过")
                 continue
             
             # 检查Ture&False列的值，如果为False则跳过不锁定
             if matched_enabled is False:
-                if 调试模式 == 1 :
+                if get_调试模式() == 1 :
                     print(f"调试: 矿石 {matched_ore_name} 的Ture&False值为False，跳过锁定")
                 continue
             
             # 检查距离是否在挖掘范围内，如果距离大于等于矿头挖掘距离则跳过
-            if distance_km is None or distance_km >= 矿头挖掘距离:
-                if 调试模式 == 1 :
-                    print(f"调试: 矿石 {matched_ore_name} 距离 {distance_km}km 超出挖掘范围（矿头挖掘距离={矿头挖掘距离}km），跳过锁定")
+            if distance_km is None or distance_km >= get_矿头挖掘距离():
+                if get_调试模式() == 1 :
+                    print(f"调试: 矿石 {matched_ore_name} 距离 {distance_km}km 超出挖掘范围（矿头挖掘距离={get_矿头挖掘距离()}km），跳过锁定")
                 continue
             
             # 添加到有效矿石列表
@@ -551,7 +605,7 @@ def OreLock(data_file_name):
             position, 
             3, 
             1, 
-            position_ratio=总览区域比例
+            position_ratio=get_总览区域比例()
         ):
             return False
         
@@ -569,7 +623,7 @@ def OreLock(data_file_name):
             lock_position,
             3,
             0,
-            position_ratio=总览区域比例
+            position_ratio=get_总览区域比例()
         ):
             return False
         
@@ -580,13 +634,13 @@ def OreLock(data_file_name):
             tools.write_to_env("上一个矿石", f'"{ore["name"]}"')
             print(f"已将矿石名称 '{ore['name']}' 写入到.env文件的'上一个矿石'键中")
         except Exception as e:
-            if 调试模式 == 1:
+            if get_调试模式() == 1:
                 print(f"调试: 写入矿石名称到.env文件失败: {str(e)}")
         
         return True
         
     except Exception as e:
-        if 调试模式 == 1:
+        if get_调试模式() == 1:
             print(f"调试: OreLock() 执行失败: {str(e)}")
         return False
 
@@ -637,7 +691,7 @@ def IceMining_Status():
     ################
     """
     # 使用 main.Screenshot() 获取已转换为 numpy 数组的截图
-    area = main.Screenshot(region=锁定状态监控区)
+    area = main.Screenshot(region=get_锁定状态监控区())
     result = main.is_state_active(template_path="assets/image/IceMining.png", screenshot_=area)
     print(result)
 
@@ -659,7 +713,7 @@ def IceOreLocked_State():
     """
     try:
         # 执行OCR识别
-        main.Imageecognition(region=锁定状态监控区, verbose=False)
+        main.Imageecognition(region=get_锁定状态监控区(), verbose=False)
         
         # 查找 assets/tmp 目录中的 JSON 文件并处理
         tmp_path = "./assets/tmp"
@@ -697,7 +751,7 @@ def IceOreLocked_State():
         # 检查是否包含任何矿石名称
         for ore_name in ore_names:
             if ore_name in all_text:
-                if 调试模式 == 1:
+                if get_调试模式() == 1:
                     print(f"调试: 在锁定状态监控区找到矿石: {ore_name}")
                 return True
         
@@ -710,7 +764,7 @@ def IceOreLocked_State():
             
             # 1. 首先尝试完全匹配
             if text_str in ore_names:
-                if 调试模式 == 1:
+                if get_调试模式() == 1:
                     print(f"调试: 完全匹配到矿石: {text_str}")
                 return True
             
@@ -720,7 +774,7 @@ def IceOreLocked_State():
             if match:
                 extracted_name = match.group(1)
                 if extracted_name in ore_names:
-                    if 调试模式 == 1:
+                    if get_调试模式() == 1:
                         print(f"调试: 括号匹配到矿石: {text_str} -> {extracted_name}")
                     return True
             
@@ -730,17 +784,207 @@ def IceOreLocked_State():
             for ore_name in sorted_ore_names:
                 # 检查矿石名称是否包含在文本中，或者文本是否包含矿石名称
                 if ore_name in text_str or text_str in ore_name:
-                    if 调试模式 == 1:
+                    if get_调试模式() == 1:
                         print(f"调试: 部分匹配到矿石: {text_str} -> {ore_name}")
                     return True
         
-        if 调试模式 == 1:
+        if get_调试模式() == 1:
             print("调试: 未在锁定状态监控区找到任何冰矿矿石")
         return False
         
     except Exception as e:
-        if 调试模式 == 1:
+        if get_调试模式() == 1:
             print(f"调试: IceOreLocked_State() 执行失败: {str(e)}")
+        return False
+
+def AbyssOreLocked_State():
+    """
+    ### 深渊矿锁定状态检查函数 ###
+    检查锁定状态监控区是否包含深渊矿矿石
+    返回：
+    True: 包含深渊矿矿石
+    False: 不包含深渊矿矿石或识别失败
+    ################
+    """
+    try:
+        # 执行OCR识别
+        main.Imageecognition(region=get_锁定状态监控区(), verbose=False)
+        
+        # 查找 assets/tmp 目录中的 JSON 文件并处理
+        tmp_path = "./assets/tmp"
+        json_file = None
+        if os.path.exists(tmp_path):
+            for filename in os.listdir(tmp_path):
+                if filename.endswith('.json'):
+                    json_file = os.path.join(tmp_path, filename)
+                    break
+        
+        if not json_file:
+            return False
+        
+        # 读取JSON文件
+        import json
+        with open(json_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        # 获取识别文本
+        rec_texts = data.get('rec_texts', [])
+        if not rec_texts:
+            return False
+        
+        # 从 AbyssOre_data.data_isk 中提取所有矿石名称（除了表头）
+        ore_names = []
+        for ore_item in AbyssOre_data.data_isk:
+            if len(ore_item) > 0 and ore_item[0] != 'core-name':  # 跳过表头
+                ore_name = ore_item[0]  # 矿石名称
+                ore_names.append(ore_name)
+        
+        # 检查 rec_texts 中是否包含任何矿石名称
+        # 将所有文本合并为一个字符串进行检查
+        all_text = ' '.join([str(text) for text in rec_texts if text])
+        
+        # 检查是否包含任何矿石名称
+        for ore_name in ore_names:
+            if ore_name in all_text:
+                if get_调试模式() == 1:
+                    print(f"调试: 在锁定状态监控区找到矿石: {ore_name}")
+                return True
+        
+        # 如果完全匹配没有找到，尝试部分匹配（参考 OreLock() 的匹配逻辑）
+        for text in rec_texts:
+            if not text or not isinstance(text, str):
+                continue
+            
+            text_str = str(text).strip()
+            
+            # 1. 首先尝试完全匹配
+            if text_str in ore_names:
+                if get_调试模式() == 1:
+                    print(f"调试: 完全匹配到矿石: {text_str}")
+                return True
+            
+            # 2. 尝试提取括号内的内容（例如"小行星(白釉冰)" -> "白釉冰"）
+            import re
+            match = re.search(r'\(([^)]+)\)', text_str)
+            if match:
+                extracted_name = match.group(1)
+                if extracted_name in ore_names:
+                    if get_调试模式() == 1:
+                        print(f"调试: 括号匹配到矿石: {text_str} -> {extracted_name}")
+                    return True
+            
+            # 3. 尝试部分匹配（例如"高密度白釉冰"包含"白釉冰"）
+            # 按名称长度排序，优先匹配更长的名称
+            sorted_ore_names = sorted(ore_names, key=len, reverse=True)
+            for ore_name in sorted_ore_names:
+                # 检查矿石名称是否包含在文本中，或者文本是否包含矿石名称
+                if ore_name in text_str or text_str in ore_name:
+                    if get_调试模式() == 1:
+                        print(f"调试: 部分匹配到矿石: {text_str} -> {ore_name}")
+                    return True
+        
+        if get_调试模式() == 1:
+            print("调试: 未在锁定状态监控区找到任何深渊矿矿石")
+        return False
+        
+    except Exception as e:
+        if get_调试模式() == 1:
+            print(f"调试: AbyssOreLocked_State() 执行失败: {str(e)}")
+        return False
+
+def CommonOreLocked_State():
+    """
+    ### 普通矿锁定状态检查函数 ###
+    检查锁定状态监控区是否包含普通矿矿石
+    返回：
+    True: 包含普通矿矿石
+    False: 不包含普通矿矿石或识别失败
+    ################
+    """
+    try:
+        # 执行OCR识别
+        main.Imageecognition(region=get_锁定状态监控区(), verbose=False)
+        
+        # 查找 assets/tmp 目录中的 JSON 文件并处理
+        tmp_path = "./assets/tmp"
+        json_file = None
+        if os.path.exists(tmp_path):
+            for filename in os.listdir(tmp_path):
+                if filename.endswith('.json'):
+                    json_file = os.path.join(tmp_path, filename)
+                    break
+        
+        if not json_file:
+            return False
+        
+        # 读取JSON文件
+        import json
+        with open(json_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        # 获取识别文本
+        rec_texts = data.get('rec_texts', [])
+        if not rec_texts:
+            return False
+        
+        # 从 CommonOre_data.data_isk 中提取所有矿石名称（除了表头）
+        ore_names = []
+        for ore_item in CommonOre_data.data_isk:
+            if len(ore_item) > 0 and ore_item[0] != 'core-name':  # 跳过表头
+                ore_name = ore_item[0]  # 矿石名称
+                ore_names.append(ore_name)
+        
+        # 检查 rec_texts 中是否包含任何矿石名称
+        # 将所有文本合并为一个字符串进行检查
+        all_text = ' '.join([str(text) for text in rec_texts if text])
+        
+        # 检查是否包含任何矿石名称
+        for ore_name in ore_names:
+            if ore_name in all_text:
+                if get_调试模式() == 1:
+                    print(f"调试: 在锁定状态监控区找到矿石: {ore_name}")
+                return True
+        
+        # 如果完全匹配没有找到，尝试部分匹配（参考 OreLock() 的匹配逻辑）
+        for text in rec_texts:
+            if not text or not isinstance(text, str):
+                continue
+            
+            text_str = str(text).strip()
+            
+            # 1. 首先尝试完全匹配
+            if text_str in ore_names:
+                if get_调试模式() == 1:
+                    print(f"调试: 完全匹配到矿石: {text_str}")
+                return True
+            
+            # 2. 尝试提取括号内的内容（例如"小行星(白釉冰)" -> "白釉冰"）
+            import re
+            match = re.search(r'\(([^)]+)\)', text_str)
+            if match:
+                extracted_name = match.group(1)
+                if extracted_name in ore_names:
+                    if get_调试模式() == 1:
+                        print(f"调试: 括号匹配到矿石: {text_str} -> {extracted_name}")
+                    return True
+            
+            # 3. 尝试部分匹配（例如"高密度白釉冰"包含"白釉冰"）
+            # 按名称长度排序，优先匹配更长的名称
+            sorted_ore_names = sorted(ore_names, key=len, reverse=True)
+            for ore_name in sorted_ore_names:
+                # 检查矿石名称是否包含在文本中，或者文本是否包含矿石名称
+                if ore_name in text_str or text_str in ore_name:
+                    if get_调试模式() == 1:
+                        print(f"调试: 部分匹配到矿石: {text_str} -> {ore_name}")
+                    return True
+        
+        if get_调试模式() == 1:
+            print("调试: 未在锁定状态监控区找到任何普通矿矿石")
+        return False
+        
+    except Exception as e:
+        if get_调试模式() == 1:
+            print(f"调试: CommonOreLocked_State() 执行失败: {str(e)}")
         return False
 
 def AutomaticIce_Mining():
@@ -756,8 +1000,8 @@ def AutomaticIce_Mining():
     time.sleep(2)
     if IceOreLocked_State():
         print("矿石已锁定")
-        第一采集器位置 = eval(os.getenv('第一采集器位置'))
-        第二采集器位置 = eval(os.getenv('第二采集器位置'))
+        第一采集器位置 = get_env_value('第一采集器位置')
+        第二采集器位置 = get_env_value('第二采集器位置')
         time.sleep(0.2)
         tools.random_click_in_circle(center = 第一采集器位置)
         time.sleep(0.2)
@@ -769,8 +1013,136 @@ def AutomaticIce_Mining():
         IceLock()
         if IceOreLocked_State():
             print("矿石已锁定")
-            第一采集器位置 = eval(os.getenv('第一采集器位置'))
-            第二采集器位置 = eval(os.getenv('第二采集器位置'))
+            第一采集器位置 = get_env_value('第一采集器位置')
+            第二采集器位置 = get_env_value('第二采集器位置')
+            time.sleep(0.2)
+            tools.random_click_in_circle(center = 第一采集器位置)
+            time.sleep(0.2)
+            tools.random_click_in_circle(center = 第二采集器位置)
+            return True
+        else:
+            print("矿石锁定失败，可能不在采集器范围内")
+            print("请尝试人工介入")
+            return False
+
+def AutomaticAbyss_Mining():
+    """
+    ### 自动深渊矿挖掘函数 ###
+    自动锁定深渊矿矿石，并进行挖掘
+    返回：
+    True: 成功
+    False: 失败
+    ################
+    """
+    OreLock("AbyssOre_data.py")
+    time.sleep(2)
+    if AbyssOreLocked_State():
+        print("矿石已锁定")
+        # 执行卸载晶体操作
+        UnloadingCrystal()
+        time.sleep(0.5)
+        # 执行更换晶体操作
+        ReplacementCrystal()
+        time.sleep(0.5)
+        # 鼠标移动到屏幕中央
+        screen_width, screen_height = pyautogui.size()
+        screen_center_x = screen_width // 2
+        screen_center_y = screen_height // 2
+        pyautogui.moveTo(screen_center_x, screen_center_y)
+        time.sleep(0.2)
+        # 继续后续操作
+        第一采集器位置 = get_env_value('第一采集器位置')
+        第二采集器位置 = get_env_value('第二采集器位置')
+        time.sleep(0.2)
+        tools.random_click_in_circle(center = 第一采集器位置)
+        time.sleep(0.2)
+        tools.random_click_in_circle(center = 第二采集器位置)
+        return True
+    else:
+        print("矿石未锁定")
+        print("再次尝试锁定矿石")
+        OreLock("AbyssOre_data.py")
+        if AbyssOreLocked_State():
+            print("矿石已锁定")
+            # 执行卸载晶体操作
+            UnloadingCrystal()
+            time.sleep(0.5)
+            # 执行更换晶体操作
+            ReplacementCrystal()
+            time.sleep(0.5)
+            # 鼠标移动到屏幕中央
+            screen_width, screen_height = pyautogui.size()
+            screen_center_x = screen_width // 2
+            screen_center_y = screen_height // 2
+            pyautogui.moveTo(screen_center_x, screen_center_y)
+            time.sleep(0.2)
+            # 继续后续操作
+            第一采集器位置 = get_env_value('第一采集器位置')
+            第二采集器位置 = get_env_value('第二采集器位置')
+            time.sleep(0.2)
+            tools.random_click_in_circle(center = 第一采集器位置)
+            time.sleep(0.2)
+            tools.random_click_in_circle(center = 第二采集器位置)
+            return True
+        else:
+            print("矿石锁定失败，可能不在采集器范围内")
+            print("请尝试人工介入")
+            return False
+
+def AutomaticCommon_Mining():
+    """
+    ### 自动普通矿挖掘函数 ###
+    自动锁定普通矿矿石，并进行挖掘
+    返回：
+    True: 成功
+    False: 失败
+    ################
+    """
+    OreLock("CommonOre_data.py")
+    time.sleep(2)
+    if CommonOreLocked_State():
+        print("矿石已锁定")
+        # 执行卸载晶体操作
+        UnloadingCrystal()
+        time.sleep(0.5)
+        # 执行更换晶体操作
+        ReplacementCrystal()
+        time.sleep(0.5)
+        # 鼠标移动到屏幕中央
+        screen_width, screen_height = pyautogui.size()
+        screen_center_x = screen_width // 2
+        screen_center_y = screen_height // 2
+        pyautogui.moveTo(screen_center_x, screen_center_y)
+        time.sleep(0.2)
+        # 继续后续操作
+        第一采集器位置 = get_env_value('第一采集器位置')
+        第二采集器位置 = get_env_value('第二采集器位置')
+        time.sleep(0.2)
+        tools.random_click_in_circle(center = 第一采集器位置)
+        time.sleep(0.2)
+        tools.random_click_in_circle(center = 第二采集器位置)
+        return True
+    else:
+        print("矿石未锁定")
+        print("再次尝试锁定矿石")
+        OreLock("CommonOre_data.py")
+        if CommonOreLocked_State():
+            print("矿石已锁定")
+            # 执行卸载晶体操作
+            UnloadingCrystal()
+            time.sleep(0.5)
+            # 执行更换晶体操作
+            ReplacementCrystal()
+            time.sleep(0.5)
+            # 鼠标移动到屏幕中央
+            screen_width, screen_height = pyautogui.size()
+            screen_center_x = screen_width // 2
+            screen_center_y = screen_height // 2
+            pyautogui.moveTo(screen_center_x, screen_center_y)
+            time.sleep(0.2)
+            # 继续后续操作
+            第一采集器位置 = get_env_value('第一采集器位置')
+            第二采集器位置 = get_env_value('第二采集器位置')
             time.sleep(0.2)
             tools.random_click_in_circle(center = 第一采集器位置)
             time.sleep(0.2)
@@ -792,7 +1164,7 @@ def WarehouseSpace_Monitor():
     """
     try:
         # 从环境变量读取监控区域
-        矿仓剩余空间监控区 = eval(os.getenv('矿仓剩余空间监控区'))
+        矿仓剩余空间监控区 = get_env_value('矿仓剩余空间监控区')
         
         # 执行OCR识别
         main.Imageecognition(region=矿仓剩余空间监控区, verbose=False)
@@ -807,7 +1179,7 @@ def WarehouseSpace_Monitor():
                     break
         
         if not json_file:
-            if 调试模式 == 1:
+            if get_调试模式() == 1:
                 print("调试: 未找到JSON文件")
             return False
         
@@ -815,7 +1187,7 @@ def WarehouseSpace_Monitor():
         result = tools.parse_warehouse_space_json(json_file)
         
         if result is None:
-            if 调试模式 == 1:
+            if get_调试模式() == 1:
                 print("调试: 无法解析矿仓剩余空间信息")
             return False
         
@@ -825,7 +1197,7 @@ def WarehouseSpace_Monitor():
         remaining_space = total_space - used_space
         remaining_percentage = (remaining_space / total_space * 100) if total_space > 0 else 0
         
-        if 调试模式 == 1:
+        if get_调试模式() == 1:
             print(f"调试: 已用空间: {used_space}m³, 总空间: {total_space}m³")
             print(f"调试: 剩余空间: {remaining_space}m³, 剩余百分比: {remaining_percentage:.2f}%")
         
@@ -840,7 +1212,7 @@ def WarehouseSpace_Monitor():
         return is_full
         
     except Exception as e:
-        if 调试模式 == 1:
+        if get_调试模式() == 1:
             print(f"调试: WarehouseSpace_Monitor() 执行失败: {str(e)}")
         return False
 
@@ -917,7 +1289,7 @@ def AutoIceMining_Monitor_Forone():
         print("监控已中断")
         return False
     except Exception as e:
-        if 调试模式 == 1:
+        if get_调试模式() == 1:
             print(f"调试: AutoIceMining_Monitor() 执行失败: {str(e)}")
         print("自动挖冰矿监控函数执行失败")
         return False
@@ -1003,7 +1375,7 @@ def AutoIceMining_Monitor_Forone_WithThrow():
         print("监控已中断")
         return False
     except Exception as e:
-        if 调试模式 == 1:
+        if get_调试模式() == 1:
             print(f"调试: AutoIceMining_Monitor_Forone_WithThrow() 执行失败: {str(e)}")
         print("自动挖冰矿监控函数执行失败")
         return False
@@ -1035,7 +1407,7 @@ def AutoIceMining_MultiWindow_Cycle():
     """
     try:
         # 1. 初始化排除账号列表（保留原始值，支持字符串和整数）
-        排除账号_env = os.getenv('排除账号')
+        排除账号_env = get_env_value('排除账号', eval_value=False)
         排除账号_原始 = []  # 保留原始值（字符串）
         排除账号_整数 = []  # 保留整数值
         if 排除账号_env:
@@ -1057,7 +1429,7 @@ def AutoIceMining_MultiWindow_Cycle():
             except Exception as e:
                 print(f"警告: 解析排除账号环境变量时出错: {e}，使用空列表")
         
-        if 调试模式 == 1:
+        if get_调试模式() == 1:
             print(f"调试: 排除账号原始列表 = {排除账号_原始}")
             print(f"调试: 排除账号整数列表 = {排除账号_整数}")
         
@@ -1094,7 +1466,7 @@ def AutoIceMining_MultiWindow_Cycle():
             print("所有窗口都在排除账号列表中，没有可用的窗口")
             return False
         
-        if 调试模式 == 1:
+        if get_调试模式() == 1:
             print(f"调试: 可用用户名列表 = {available_usernames}")
         
         # 持续循环处理所有窗口（处理完所有窗口后重新开始）
@@ -1146,7 +1518,7 @@ def AutoIceMining_MultiWindow_Cycle():
                 time.sleep(5)
                 continue
             
-            if 调试模式 == 1:
+            if get_调试模式() == 1:
                 print(f"调试: 当前可用用户名列表 = {available_usernames}")
             
             # 记录已切换的窗口，确保单次循环中不重复
@@ -1260,7 +1632,7 @@ def AutoIceMining_MultiWindow_Cycle():
         print("多窗口循环已中断")
         return False
     except Exception as e:
-        if 调试模式 == 1:
+        if get_调试模式() == 1:
             print(f"调试: AutoIceMining_MultiWindow_Cycle() 执行失败: {str(e)}")
         print(f"多窗口自动挖冰矿循环函数执行失败: {str(e)}")
         return False
@@ -1653,13 +2025,13 @@ def UnloadingCrystal():
     ################
     """
     try:
-        第一采集器位置 = eval(os.getenv('第一采集器位置'))
+        第一采集器位置 = get_env_value('第一采集器位置')
         time.sleep(0.2)
         tools.random_click_in_circle(center = 第一采集器位置,button = 1)
         time.sleep(0.2)
         tools.Unload_Mining_Crystal()
 
-        第二采集器位置 = eval(os.getenv('第二采集器位置'))
+        第二采集器位置 = get_env_value('第二采集器位置')
         time.sleep(0.2)
         tools.random_click_in_circle(center = 第二采集器位置,button = 1)
         time.sleep(0.2)
@@ -1679,13 +2051,13 @@ def ReplacementCrystal():
     ################
     """
     try:
-        第一采集器位置 = eval(os.getenv('第一采集器位置'))
+        第一采集器位置 = get_env_value('第一采集器位置')
         time.sleep(0.2)
         tools.random_click_in_circle(center = 第一采集器位置,button = 1)
         time.sleep(0.2)
         tools.Change_Mining_Crystal()
 
-        第二采集器位置 = eval(os.getenv('第二采集器位置'))
+        第二采集器位置 = get_env_value('第二采集器位置')
         time.sleep(0.2)
         tools.random_click_in_circle(center = 第二采集器位置,button = 1)
         time.sleep(0.2)
@@ -1693,3 +2065,4 @@ def ReplacementCrystal():
         return True
     except:
         return False
+

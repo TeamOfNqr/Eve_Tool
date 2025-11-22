@@ -1667,3 +1667,29 @@ def UnloadingCrystal():
         return True
     except:
         return False
+
+def ReplacementCrystal():
+    """
+    ### 统一更换晶体函数 ###
+    参数：
+        无
+    返回：
+        True: 成功
+        False: 失败
+    ################
+    """
+    try:
+        第一采集器位置 = eval(os.getenv('第一采集器位置'))
+        time.sleep(0.2)
+        tools.random_click_in_circle(center = 第一采集器位置,button = 1)
+        time.sleep(0.2)
+        tools.Change_Mining_Crystal()
+
+        第二采集器位置 = eval(os.getenv('第二采集器位置'))
+        time.sleep(0.2)
+        tools.random_click_in_circle(center = 第二采集器位置,button = 1)
+        time.sleep(0.2)
+        tools.Change_Mining_Crystal()
+        return True
+    except:
+        return False

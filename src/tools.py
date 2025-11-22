@@ -1679,6 +1679,190 @@ def Unload_Mining_Crystal():
         print("卸载矿石挖掘晶体函数执行失败")
         return False
 
+def Change_Mining_Crystal():
+    """
+    ### 更换矿石挖掘晶体函数 ###
+    执行更换矿石挖掘晶体的操作流程：
+    1. 从.env文件读取"上一个矿石"的值
+    2. 遍历assets/data目录下的所有py文件，查找对应的data_isk变量
+    3. 在data_isk中查找匹配的矿石名称（core-name列），获取对应的core-crystal值
+    4. 根据"晶体交互区"比例计算屏幕左下区域
+    5. 在该区域内执行OCR识别
+    6. 查找core-crystal对应的晶体名称关键词的位置
+    7. 点击找到的关键词位置
+    
+    返回：
+        True: 成功
+        False: 失败
+    ################
+    """
+    try:
+        import importlib
+        import importlib.util
+        
+        # 1. 从.env文件读取"上一个矿石"的值
+        上一个矿石值 = os.getenv('上一个矿石')
+        if not 上一个矿石值:
+            print("错误: .env文件中未找到'上一个矿石'键")
+            return False
+        
+        # 去除可能的双引号（如果值是带引号的字符串）
+        上一个矿石值 = 上一个矿石值.strip().strip('"').strip("'")
+        
+        if 调试模式 == 1:
+            print(f"调试: 读取到的'上一个矿石'值 = '{上一个矿石值}'")
+        
+        if not 上一个矿石值:
+            print("错误: '上一个矿石'值为空")
+            return False
+        
+        # 2. 遍历assets/data目录下的所有py文件，查找对应的data_isk变量
+        data_dir = Path("assets/data")
+        if not data_dir.exists():
+            print(f"错误: 数据目录不存在: {data_dir}")
+            return False
+        
+        # 查找所有py文件（排除__init__.py和__pycache__）
+        py_files = [f for f in data_dir.glob("*.py") if f.name != "__init__.py"]
+        
+        if not py_files:
+            print(f"错误: 在{data_dir}目录下未找到数据文件")
+            return False
+        
+        晶体名称 = None
+        
+        # 遍历所有数据文件
+        for py_file in py_files:
+            try:
+                # 动态导入模块
+                module_name = f"assets.data.{py_file.stem}"
+                spec = importlib.util.spec_from_file_location(module_name, py_file)
+                if spec is None or spec.loader is None:
+                    continue
+                
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                
+                # 检查是否有data_isk变量
+                if not hasattr(module, 'data_isk'):
+                    continue
+                
+                data_isk = module.data_isk
+                
+                # 在data_isk中查找匹配的矿石名称
+                # data_isk格式: [['core-name','core-path','core-crystal',...], ...]
+                # 第一行是表头，从第二行开始是数据
+                for row in data_isk[1:]:  # 跳过表头
+                    if len(row) >= 3:  # 确保至少有3列
+                        ore_name = str(row[0]).strip()  # core-name列（索引0）
+                        crystal_name = str(row[2]).strip()  # core-crystal列（索引2）
+                        
+                        # 匹配矿石名称（不区分大小写）
+                        if ore_name == 上一个矿石值:
+                            # 检查晶体名称是否有效（不是'none'）
+                            if crystal_name and crystal_name.lower() != 'none':
+                                晶体名称 = crystal_name
+                                if 调试模式 == 1:
+                                    print(f"调试: 在文件 {py_file.name} 中找到匹配的矿石 '{ore_name}'，对应的晶体名称 = '{晶体名称}'")
+                                break
+                
+                if 晶体名称:
+                    break
+                    
+            except Exception as e:
+                if 调试模式 == 1:
+                    print(f"调试: 读取文件 {py_file.name} 时出错: {str(e)}")
+                continue
+        
+        if not 晶体名称:
+            print(f"错误: 未找到矿石 '{上一个矿石值}' 对应的晶体名称")
+            print(f"提示: 请检查assets/data目录下的数据文件，或确认矿石名称是否正确")
+            return False
+        
+        # 3. 初始化环境变量，从.env读取"晶体交互区"配置
+        晶体交互区 = eval(os.getenv('晶体交互区'))
+        
+        # 验证晶体交互区格式
+        if not isinstance(晶体交互区, (list, tuple)) or len(晶体交互区) != 2:
+            print("错误: 晶体交互区格式不正确")
+            return False
+        
+        # 4. 根据"晶体交互区"比例计算屏幕左下区域
+        screen_width, screen_height = pyautogui.size()
+        x_ratio, y_ratio = 晶体交互区
+        
+        # 计算左下区域
+        # 左下区域：从(0, y_ratio * screen_height)到(x_ratio * screen_width, screen_height)
+        left = 0
+        top = int(screen_height * y_ratio)
+        width = int(screen_width * x_ratio)
+        height = screen_height - top
+        
+        region = (left, top, width, height)
+        
+        if 调试模式 == 1:
+            print(f"调试: 左下区域 region = {region}")
+            print(f"调试: 屏幕尺寸 = ({screen_width}, {screen_height})")
+            print(f"调试: 晶体交互区比例 = ({x_ratio}, {y_ratio})")
+            print(f"调试: 要查找的晶体名称 = '{晶体名称}'")
+        
+        # 5. 在该区域内执行OCR识别
+        main.Imageecognition(region=region, verbose=False)
+        
+        # 6. 查找晶体名称关键词的位置
+        晶体位置 = find_keyword_position(晶体名称, refresh=False, verbose=False)
+        
+        if 晶体位置 is None:
+            print(f"未找到晶体名称 '{晶体名称}' 关键词")
+            return False
+        
+        # 计算晶体名称关键词的中心位置
+        x_min, y_min, x_max, y_max = 晶体位置
+        
+        if 调试模式 == 1:
+            print(f"调试: 找到晶体名称 '{晶体名称}' 位置（相对坐标）= [{x_min}, {y_min}, {x_max}, {y_max}]")
+            print(f"调试: 识别区域偏移量 offset = ({left}, {top})")
+        
+        # 补偿识别区域的偏移量：将识别区域内的相对坐标转换为屏幕绝对坐标
+        x_min = x_min + left
+        y_min = y_min + top
+        x_max = x_max + left
+        y_max = y_max + top
+        
+        if 调试模式 == 1:
+            print(f"调试: 转换后的坐标（绝对坐标）= [{x_min}, {y_min}, {x_max}, {y_max}]")
+        
+        center_x = (x_min + x_max) // 2
+        center_y = (y_min + y_max) // 2
+        
+        # 验证坐标是否在合理范围内
+        if center_x < 0 or center_x > screen_width or center_y < 0 or center_y > screen_height:
+            print(f"警告: 计算的中心位置 ({center_x}, {center_y}) 超出屏幕范围!")
+            print(f"屏幕范围: ({screen_width}, {screen_height})")
+            if 调试模式 == 1:
+                print(f"调试: 这可能表示坐标转换有问题")
+            return False
+        
+        if 调试模式 == 1:
+            print(f"调试: 计算的中心位置 = ({center_x}, {center_y})")
+        
+        # 7. 点击找到的关键词位置
+        pyautogui.moveTo(center_x, center_y)
+        time.sleep(0.2)
+        pyautogui.click(button='left')
+        time.sleep(0.2)
+        
+        print(f"更换矿石挖掘晶体操作完成，已点击晶体 '{晶体名称}'")
+        return True
+        
+    except Exception as e:
+        if 调试模式 == 1:
+            print(f"调试: Change_Mining_Crystal() 执行失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
+        print("更换矿石挖掘晶体函数执行失败")
+        return False
+
 def draw_region_by_ratio(
     env_key_name: str,
     position: int,

@@ -24,6 +24,12 @@ import pyautogui
 # 自动挖冰矿监控的停止事件
 AUTO_ICE_MONITOR_STOP_EVENT = threading.Event()
 
+# 自动挖深渊矿监控的停止事件
+AUTO_ABYSS_MONITOR_STOP_EVENT = threading.Event()
+
+# 自动挖普通矿监控的停止事件
+AUTO_COMMON_MONITOR_STOP_EVENT = threading.Event()
+
 def get_env_value(key, default=None, eval_value=True, int_value=False):
     """
     ### 实时获取环境变量值函数 ###
@@ -1386,6 +1392,192 @@ def Stop_AutoIceMining_Monitor_Forone():
     通过设置停止事件请求 AutoIceMining_Monitor_Forone() 结束循环
     """
     AUTO_ICE_MONITOR_STOP_EVENT.set()
+
+def AutoAbyssMining_Monitor_Forone_WithThrow():
+    """
+    ### 自动挖深渊矿以及监控函数（带抛出功能） ###
+    自动执行深渊矿挖掘并监控矿仓状态（支持外部停止）
+    与 AutoIceMining_Monitor_Forone_WithThrow() 的区别：
+    使用 AutomaticAbyss_Mining() 和 AbyssOreLocked_State() 进行深渊矿挖掘和检测
+    返回：
+    True: 成功或正常停止
+    False: 失败或需要人工介入
+    ################
+    """
+    # 每次调用前清除停止标志
+    AUTO_ABYSS_MONITOR_STOP_EVENT.clear()
+    try:
+        # 步骤1: 检查是否已经锁定到深渊矿
+        if AbyssOreLocked_State():
+            # 已锁定，进入步骤2
+            print("检测到已锁定深渊矿，检查挖掘状态...")
+            # 步骤2: 检查采集器是否正在挖掘
+            if IceMining_Status():
+                # 正在挖掘，直接进入步骤4
+                print("采集器正在挖掘，开始监控矿仓状态...")
+            else:
+                # 未在挖掘，执行自动挖掘
+                print("采集器未在挖掘，执行自动挖掘...")
+                if not tools.CollectorClick():
+                    print("矿石锁定失败或不在挖掘范围，请人工调整")
+                    return False
+        else:
+            # 未锁定，直接跳到步骤3
+            print("未检测到已锁定深渊矿，执行自动挖掘...")
+            # 步骤3: 执行自动挖掘
+            if not AutomaticAbyss_Mining():
+                print("矿石锁定失败或不在挖掘范围，请人工调整")
+                return False
+        
+        # 步骤4: 每5秒监控一次矿仓状态
+        print("开始监控矿仓状态...")
+        while not AUTO_ABYSS_MONITOR_STOP_EVENT.is_set():
+            if WarehouseSpace_Monitor():
+                # 矿仓已满，执行压缩操作
+                print("检测到矿仓已满，执行压缩操作...")
+                tools.Compress_Interaction()  # 无论压缩是否成功都继续
+                
+                # 等待压缩操作完成，给系统一些时间更新状态
+                time.sleep(2)
+                
+                # 立即执行抛出矿石至舰队机库（无论压缩是否成功）
+                print("执行抛出矿石至舰队机库...")
+                if not tools.Throw_Ore_To_Fleet_Hangar():
+                    print("抛出矿石至舰队机库失败，请人工介入")
+                    return False
+                print("抛出矿石至舰队机库成功")
+                
+                # 等待抛出操作完成，给系统一些时间更新状态
+                time.sleep(1)
+                
+                # 检测矿仓空间，如果依旧为满则提示
+                print("抛出后重新检测矿仓空间...")
+                if WarehouseSpace_Monitor():
+                    print("矿石压缩抛出失败，请尝试人工介入")
+                    return False
+                else:
+                    print("矿仓空间已释放，继续监控...")
+            else:
+                # WarehouseSpace_Monitor() 内部已经打印了矿仓剩余空间
+                pass
+
+            # 循环间隔，如果收到停止信号则提前结束
+            for _ in range(5):
+                if AUTO_ABYSS_MONITOR_STOP_EVENT.is_set():
+                    break
+                time.sleep(1)
+
+        print("收到停止指令，自动挖深渊矿监控结束")
+        return True
+            
+    except KeyboardInterrupt:
+        print("监控已中断")
+        return False
+    except Exception as e:
+        if get_调试模式() == 1:
+            print(f"调试: AutoAbyssMining_Monitor_Forone_WithThrow() 执行失败: {str(e)}")
+        print("自动挖深渊矿监控函数执行失败")
+        return False
+
+def AutoCommonMining_Monitor_Forone_WithThrow():
+    """
+    ### 自动挖普通矿以及监控函数（带抛出功能） ###
+    自动执行普通矿挖掘并监控矿仓状态（支持外部停止）
+    与 AutoIceMining_Monitor_Forone_WithThrow() 的区别：
+    使用 AutomaticCommon_Mining() 和 CommonOreLocked_State() 进行普通矿挖掘和检测
+    返回：
+    True: 成功或正常停止
+    False: 失败或需要人工介入
+    ################
+    """
+    # 每次调用前清除停止标志
+    AUTO_COMMON_MONITOR_STOP_EVENT.clear()
+    try:
+        # 步骤1: 检查是否已经锁定到普通矿
+        if CommonOreLocked_State():
+            # 已锁定，进入步骤2
+            print("检测到已锁定普通矿，检查挖掘状态...")
+            # 步骤2: 检查采集器是否正在挖掘
+            if IceMining_Status():
+                # 正在挖掘，直接进入步骤4
+                print("采集器正在挖掘，开始监控矿仓状态...")
+            else:
+                # 未在挖掘，执行自动挖掘
+                print("采集器未在挖掘，执行自动挖掘...")
+                if not tools.CollectorClick():
+                    print("矿石锁定失败或不在挖掘范围，请人工调整")
+                    return False
+        else:
+            # 未锁定，直接跳到步骤3
+            print("未检测到已锁定普通矿，执行自动挖掘...")
+            # 步骤3: 执行自动挖掘
+            if not AutomaticCommon_Mining():
+                print("矿石锁定失败或不在挖掘范围，请人工调整")
+                return False
+        
+        # 步骤4: 每5秒监控一次矿仓状态
+        print("开始监控矿仓状态...")
+        while not AUTO_COMMON_MONITOR_STOP_EVENT.is_set():
+            if WarehouseSpace_Monitor():
+                # 矿仓已满，执行压缩操作
+                print("检测到矿仓已满，执行压缩操作...")
+                tools.Compress_Interaction()  # 无论压缩是否成功都继续
+                
+                # 等待压缩操作完成，给系统一些时间更新状态
+                time.sleep(2)
+                
+                # 立即执行抛出矿石至舰队机库（无论压缩是否成功）
+                print("执行抛出矿石至舰队机库...")
+                if not tools.Throw_Ore_To_Fleet_Hangar():
+                    print("抛出矿石至舰队机库失败，请人工介入")
+                    return False
+                print("抛出矿石至舰队机库成功")
+                
+                # 等待抛出操作完成，给系统一些时间更新状态
+                time.sleep(1)
+                
+                # 检测矿仓空间，如果依旧为满则提示
+                print("抛出后重新检测矿仓空间...")
+                if WarehouseSpace_Monitor():
+                    print("矿石压缩抛出失败，请尝试人工介入")
+                    return False
+                else:
+                    print("矿仓空间已释放，继续监控...")
+            else:
+                # WarehouseSpace_Monitor() 内部已经打印了矿仓剩余空间
+                pass
+
+            # 循环间隔，如果收到停止信号则提前结束
+            for _ in range(5):
+                if AUTO_COMMON_MONITOR_STOP_EVENT.is_set():
+                    break
+                time.sleep(1)
+
+        print("收到停止指令，自动挖普通矿监控结束")
+        return True
+            
+    except KeyboardInterrupt:
+        print("监控已中断")
+        return False
+    except Exception as e:
+        if get_调试模式() == 1:
+            print(f"调试: AutoCommonMining_Monitor_Forone_WithThrow() 执行失败: {str(e)}")
+        print("自动挖普通矿监控函数执行失败")
+        return False
+
+def Stop_AutoAbyssMining_Monitor_Forone():
+    """
+    ### 停止自动挖深渊矿监控 ###
+    通过设置停止事件请求 AutoAbyssMining_Monitor_Forone_WithThrow() 结束循环
+    """
+    AUTO_ABYSS_MONITOR_STOP_EVENT.set()
+
+def Stop_AutoCommonMining_Monitor_Forone():
+    """
+    ### 停止自动挖普通矿监控 ###
+    通过设置停止事件请求 AutoCommonMining_Monitor_Forone_WithThrow() 结束循环
+    """
+    AUTO_COMMON_MONITOR_STOP_EVENT.set()
 
 def AutoIceMining_MultiWindow_Cycle():
     """

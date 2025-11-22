@@ -80,6 +80,10 @@ class InfoPage(QWidget):
         self.auto_ice_running = False
         # 多账号自动挖矿控制运行状态
         self.auto_multi_account_running = False
+        # 自动深渊矿监控运行状态
+        self.auto_abyss_running = False
+        # 自动普通矿监控运行状态
+        self.auto_common_running = False
 
         # 主布局：水平布局，左侧70%控制台，右侧30%按钮区域
         main_layout = QHBoxLayout(self)
@@ -191,13 +195,13 @@ class InfoPage(QWidget):
         self.button2.clicked.connect(self.on_button2_clicked)
         button_layout.addWidget(self.button2)
 
-        self.button3 = QPushButton("按钮3")
+        self.button3 = QPushButton("自动多账号深渊矿挖掘")
         self.button3.setFixedHeight(36)
         self.button3.setStyleSheet(button_style)
         self.button3.clicked.connect(self.on_button3_clicked)
         button_layout.addWidget(self.button3)
 
-        self.button4 = QPushButton("按钮4")
+        self.button4 = QPushButton("自动多账号普通矿挖掘")
         self.button4.setFixedHeight(36)
         self.button4.setStyleSheet(button_style)
         self.button4.clicked.connect(self.on_button4_clicked)
@@ -387,12 +391,138 @@ class InfoPage(QWidget):
             self.button2.setText("启动多账号自动挖矿控制")
 
     def on_button3_clicked(self):
-        """按钮3点击处理：暂无功能"""
-        self._update_console("按钮3", None)
+        """按钮3点击处理：触发自动深渊矿挖掘监控"""
+        # 如果当前未运行，则启动监控；否则发送停止指令
+        if not self.auto_abyss_running:
+            # 启动
+            self.auto_abyss_running = True
+            self.button3.setText("停止多账号深渊矿挖掘")
+
+            # 在控制台显示启动信息
+            try:
+                self.console_display.clear()
+                timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                self.console_display.append(f"[{timestamp}] 执行: 自动深渊矿挖掘监控（已启动）")
+                self.console_display.append("-" * 50)
+                cursor = self.console_display.textCursor()
+                cursor.movePosition(QTextCursor.MoveOperation.End)
+                self.console_display.setTextCursor(cursor)
+            except Exception:
+                pass
+
+            # 在后台线程中执行耗时/长期运行的自动挖矿监控，避免阻塞 UI，
+            # 并通过 RealTimeTextStream 将 print 输出实时写入控制台
+            def _worker():
+                realtime_stream = RealTimeTextStream(self.console_display)
+                try:
+                    with redirect_stdout(realtime_stream):
+                        complex_events.AutoAbyssMining_Monitor_Forone_WithThrow()
+                    realtime_stream.flush()
+                except Exception as e:
+                    print(f"自动深渊矿挖掘监控线程异常: {e}")
+                finally:
+                    # 监控结束后在主线程恢复按钮状态
+                    def _reset():
+                        self.auto_abyss_running = False
+                        self.button3.setText("自动多账号深渊矿挖掘")
+                    QCoreApplication.postEvent(
+                        self,
+                        type("DummyEvent", (QEvent,), {})()  # 简单触发事件队列
+                    )
+                    QCoreApplication.instance().postEvent(
+                        self,
+                        type("DummyEvent", (QEvent,), {})()
+                    )
+                    # 为了简单起见，直接在后台线程更新标志，按钮文字依然在下次点击前可见
+                    self.auto_abyss_running = False
+                    self.button3.setText("自动多账号深渊矿挖掘")
+
+            threading.Thread(target=_worker, daemon=True).start()
+        else:
+            # 发送停止指令
+            complex_events.Stop_AutoAbyssMining_Monitor_Forone()
+
+            # 在控制台提示停止
+            try:
+                timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                self.console_display.append(f"[{timestamp}] 已请求终止自动深渊矿挖掘监控")
+                self.console_display.append("-" * 50)
+                cursor = self.console_display.textCursor()
+                cursor.movePosition(QTextCursor.MoveOperation.End)
+                self.console_display.setTextCursor(cursor)
+            except Exception:
+                pass
+
+            # 立即恢复按钮文字，状态标记将在后台线程结束时再次重置
+            self.auto_abyss_running = False
+            self.button3.setText("自动多账号深渊矿挖掘")
 
     def on_button4_clicked(self):
-        """按钮4点击处理：暂无功能"""
-        self._update_console("按钮4", None)
+        """按钮4点击处理：触发自动普通矿挖掘监控"""
+        # 如果当前未运行，则启动监控；否则发送停止指令
+        if not self.auto_common_running:
+            # 启动
+            self.auto_common_running = True
+            self.button4.setText("停止多账号普通矿挖掘")
+
+            # 在控制台显示启动信息
+            try:
+                self.console_display.clear()
+                timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                self.console_display.append(f"[{timestamp}] 执行: 自动普通矿挖掘监控（已启动）")
+                self.console_display.append("-" * 50)
+                cursor = self.console_display.textCursor()
+                cursor.movePosition(QTextCursor.MoveOperation.End)
+                self.console_display.setTextCursor(cursor)
+            except Exception:
+                pass
+
+            # 在后台线程中执行耗时/长期运行的自动挖矿监控，避免阻塞 UI，
+            # 并通过 RealTimeTextStream 将 print 输出实时写入控制台
+            def _worker():
+                realtime_stream = RealTimeTextStream(self.console_display)
+                try:
+                    with redirect_stdout(realtime_stream):
+                        complex_events.AutoCommonMining_Monitor_Forone_WithThrow()
+                    realtime_stream.flush()
+                except Exception as e:
+                    print(f"自动普通矿挖掘监控线程异常: {e}")
+                finally:
+                    # 监控结束后在主线程恢复按钮状态
+                    def _reset():
+                        self.auto_common_running = False
+                        self.button4.setText("自动多账号普通矿挖掘")
+                    QCoreApplication.postEvent(
+                        self,
+                        type("DummyEvent", (QEvent,), {})()  # 简单触发事件队列
+                    )
+                    QCoreApplication.instance().postEvent(
+                        self,
+                        type("DummyEvent", (QEvent,), {})()
+                    )
+                    # 为了简单起见，直接在后台线程更新标志，按钮文字依然在下次点击前可见
+                    self.auto_common_running = False
+                    self.button4.setText("自动多账号普通矿挖掘")
+
+            threading.Thread(target=_worker, daemon=True).start()
+        else:
+            # 发送停止指令
+            complex_events.Stop_AutoCommonMining_Monitor_Forone()
+
+            # 在控制台提示停止
+            try:
+                timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                self.console_display.append(f"[{timestamp}] 已请求终止自动普通矿挖掘监控")
+                self.console_display.append("-" * 50)
+                cursor = self.console_display.textCursor()
+                cursor.movePosition(QTextCursor.MoveOperation.End)
+                self.console_display.setTextCursor(cursor)
+            except Exception:
+                pass
+
+            # 立即恢复按钮文字，状态标记将在后台线程结束时再次重置
+            self.auto_common_running = False
+            self.button4.setText("自动多账号普通矿挖掘")
 
 
 class MainPage(QWidget):
@@ -409,6 +539,9 @@ class MainPage(QWidget):
 
         self._build_left_panel()
         self._build_right_panel()
+        
+        # 初始化按钮2的文本（在按钮创建后）
+        self._update_button2_text()
         
         # 启动定时器，每5秒执行一次 Info_Show
         self.timer = QTimer()
@@ -544,12 +677,14 @@ class MainPage(QWidget):
         self.button1.clicked.connect(self.on_button1_clicked)
         right_layout.addWidget(self.button1)
 
-        # 创建按钮2
-        self.button2 = QPushButton("窗口前置/取消前置")
+        # 创建按钮2（窗口前置/取消前置）
+        self.button2 = QPushButton("窗口前置")
         self.button2.setFixedHeight(36)
         self.button2.setStyleSheet(button_style)
         self.button2.clicked.connect(self.on_button2_clicked)
         right_layout.addWidget(self.button2)
+        # 保存默认样式，用于后续恢复
+        self.default_button_style = button_style
 
         # 创建按钮3
         self.button3 = QPushButton("更新第一采集器位置")
@@ -698,30 +833,96 @@ class MainPage(QWidget):
         """按钮1点击处理"""
         self._update_console("更新总览区域", complex_events.OverviewScale_Change)
 
+    def _update_button2_text(self):
+        """更新按钮2的文本和样式，根据当前状态显示"""
+        if self.is_topmost:
+            self.button2.setText("取消前置")
+            # 置顶状态：绿色样式
+            self.button2.setStyleSheet(
+                """
+                QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    border: 1px solid rgba(0, 0, 0, 30);
+                    border-radius: 6px;
+                    padding: 6px 12px;
+                    font-size: 10pt;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #45a049;
+                    border-color: rgba(0, 0, 0, 50);
+                }
+                QPushButton:pressed {
+                    background-color: #3d8b40;
+                }
+                """
+            )
+        else:
+            self.button2.setText("窗口前置")
+            # 恢复默认样式
+            self.button2.setStyleSheet(self.default_button_style)
+    
     def toggle_window_topmost(self):
         """切换窗口前置状态"""
         main_window = self.window()
         if main_window:
-            if self.is_topmost:
-                # 恢复普通状态
-                main_window.setWindowFlags(main_window.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
-                self.is_topmost = False
-                print("窗口已恢复普通状态")
-            else:
-                # 设置为前置
-                main_window.setWindowFlags(main_window.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-                self.is_topmost = True
-                print("窗口已设置为前置")
-            # 重新显示窗口以应用更改
-            main_window.show()
-            return True
+            try:
+                if self.is_topmost:
+                    # 恢复普通状态
+                    flags = main_window.windowFlags()
+                    flags &= ~Qt.WindowType.WindowStaysOnTopHint
+                    main_window.setWindowFlags(flags)
+                    self.is_topmost = False
+                    print("✓ 窗口已恢复普通状态（不再置顶）")
+                else:
+                    # 设置为前置
+                    flags = main_window.windowFlags()
+                    flags |= Qt.WindowType.WindowStaysOnTopHint
+                    main_window.setWindowFlags(flags)
+                    self.is_topmost = True
+                    print("✓ 窗口已设置为前置（始终置顶）")
+                
+                # 重新显示窗口以应用更改
+                main_window.show()
+                # 确保窗口获得焦点
+                main_window.raise_()
+                main_window.activateWindow()
+                
+                # 更新按钮文本
+                self._update_button2_text()
+                
+                return True
+            except Exception as e:
+                print(f"✗ 切换窗口前置状态时出错: {str(e)}")
+                return False
         else:
-            print("无法获取主窗口")
+            print("✗ 无法获取主窗口")
             return False
     
     def on_button2_clicked(self):
-        """按钮2点击处理"""
-        self._update_console("窗口前置/取消前置", self.toggle_window_topmost)
+        """按钮2点击处理：切换窗口前置状态"""
+        # 先更新控制台显示
+        self.console_display.clear()
+        timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+        self.console_display.append(f"[{timestamp}] 执行: {'取消前置' if self.is_topmost else '窗口前置'}")
+        self.console_display.append("-" * 50)
+        
+        # 执行切换操作
+        try:
+            result = self.toggle_window_topmost()
+            if result:
+                status_text = "已置顶" if self.is_topmost else "已取消置顶"
+                self.console_display.append(f"状态: {status_text}")
+            else:
+                self.console_display.append("操作失败，请检查错误信息")
+        except Exception as e:
+            self.console_display.append(f"操作出错: {str(e)}")
+        
+        # 滚动到底部
+        cursor = self.console_display.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        self.console_display.setTextCursor(cursor)
 
     def on_button3_clicked(self):
         """按钮3点击处理"""
@@ -1695,7 +1896,3 @@ class AboutPage(QWidget):
                 self.about_text.setPlainText(debug_info)
         except Exception as e:
             self.about_text.setPlainText(f"加载 about.md 文件时出错: {str(e)}\n\n错误详情: {type(e).__name__}")
-
-
-# complex_events.OreLock("CommonOre_data.py")
-complex_events.AutomaticCommon_Mining()
